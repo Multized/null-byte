@@ -6,6 +6,8 @@ const NUM_SUFFIXES = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No'
 
 export function formatBits(n: number): string {
   if (n < 0) return '0 bits'
+  if (n < 1) return `${n.toFixed(2)} bits`
+  if (n < 10) return `${n.toFixed(1)} bits`
   if (n < 1024) return `${Math.floor(n)} bits`
   let i = 0
   let val = n
