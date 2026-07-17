@@ -1,5 +1,5 @@
 import type { GameState } from './types'
-import { useGameStore, getSerializableState } from './store'
+import { useGameStore, getSerializableState, generateSyncCode, randomTag } from './store'
 import { calcBitsPerSecond, getOfflineCapHours } from './utils'
 import { SAVE_KEY } from './constants'
 
@@ -32,8 +32,8 @@ export function loadGame(): GameState | null {
       lastActive: data.lastActive ?? Date.now(),
       playerId: data.playerId || crypto.randomUUID(),
       playerName: data.playerName ?? '',
-      playerTag: data.playerTag ?? String(Math.floor(Math.random() * 9000) + 1000),
-      syncCode: data.syncCode ?? '',
+      playerTag: data.playerTag || randomTag(),
+      syncCode: data.syncCode || generateSyncCode(),
     }
   } catch (e) {
     console.error('Load failed:', e)

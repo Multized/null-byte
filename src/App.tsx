@@ -40,6 +40,7 @@ export default function App() {
     if (saved) {
       const offlineRes = calcOfflineEarnings(saved)
       loadState(saved)
+      saveGame() // persist any newly generated syncCode/playerTag
       if (offlineRes.earnings > 0) {
         useGameStore.setState(s => ({
           bits: s.bits + offlineRes.earnings,
