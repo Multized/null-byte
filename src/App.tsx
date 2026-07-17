@@ -14,6 +14,7 @@ import { OfflineModal } from './components/OfflineModal'
 import { NameModal } from './components/NameModal'
 import { Leaderboard, type LeaderboardEntry } from './components/Leaderboard'
 import { AccountPanel } from './components/AccountPanel'
+import { OnboardingHint } from './components/OnboardingHint'
 import { isUpgradeUnlocked } from './game/utils'
 import { UPGRADES } from './game/constants'
 
@@ -219,6 +220,7 @@ export default function App() {
         </nav>
       </div>
 
+      <OnboardingHint />
       {showPrestige && <PrestigeModal onClose={() => setShowPrestige(false)} />}
       {showNameModal && <NameModal onClose={() => setShowNameModal(false)} />}
       {offlineResult && (
