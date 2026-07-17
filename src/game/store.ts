@@ -10,6 +10,20 @@ import {
 } from './utils'
 import { UPGRADES, PRESTIGE_UPGRADES, PRESTIGE_UNLOCK_BITS } from './constants'
 
+function generatePlayerId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
+
+function randomAnonName(): string {
+  const words = ['ghost', 'null', 'root', 'void', 'hex', 'zero', 'byte', 'dark', 'sys', 'anon']
+  const word = words[Math.floor(Math.random() * words.length)]
+  const num = Math.floor(Math.random() * 9000) + 1000
+  return `${word}_${num}`
+}
+
 function defaultState(): GameState {
   return {
     bits: 0,
@@ -21,6 +35,8 @@ function defaultState(): GameState {
     purchasedPrestigeUpgrades: {},
     prestigeCount: 0,
     lastActive: Date.now(),
+    playerId: generatePlayerId(),
+    playerName: '',
   }
 }
 
@@ -38,6 +54,7 @@ interface GameStore extends GameState {
   buyPrestigeUpgrade: (id: string) => boolean
   loadState: (state: GameState) => void
   updateLastActive: () => void
+  setPlayerName: (name: string) => void
 }
 
 function computeDerived(state: GameState) {
@@ -161,6 +178,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   updateLastActive: () => {
     set({ lastActive: Date.now() })
   },
+
+  setPlayerName: (name: string) => {
+    set({ playerName: name })
+  },
 }))
 
 export function getSerializableState(): GameState {
@@ -175,5 +196,9 @@ export function getSerializableState(): GameState {
     purchasedPrestigeUpgrades: s.purchasedPrestigeUpgrades,
     prestigeCount: s.prestigeCount,
     lastActive: s.lastActive,
+    playerId: s.playerId,
+    playerName: s.playerName,
   }
 }
+
+export { randomAnonName }

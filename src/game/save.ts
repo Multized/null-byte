@@ -30,6 +30,8 @@ export function loadGame(): GameState | null {
       purchasedPrestigeUpgrades: data.purchasedPrestigeUpgrades ?? {},
       prestigeCount: data.prestigeCount ?? 0,
       lastActive: data.lastActive ?? Date.now(),
+      playerId: data.playerId || crypto.randomUUID(),
+      playerName: data.playerName ?? '',
     }
   } catch (e) {
     console.error('Load failed:', e)

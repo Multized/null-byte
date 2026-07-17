@@ -43,4 +43,6 @@ export interface GameState {
   purchasedPrestigeUpgrades: Record<string, number>
   prestigeCount: number
   lastActive: number
+  playerId: string
+  playerName: string
 }
