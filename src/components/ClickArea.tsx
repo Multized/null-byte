@@ -22,6 +22,7 @@ export function ClickArea({ onPrestigeClick }: Props) {
   const bitsPerSecond = useGameStore(s => s.bitsPerSecond)
   const totalBitsEarned = useGameStore(s => s.totalBitsEarned)
   const ghostCredits = useGameStore(s => s.ghostCredits)
+  const prestigeCount = useGameStore(s => s.prestigeCount)
 
   const [floats, setFloats] = useState<FloatText[]>([])
   const [isFlashing, setIsFlashing] = useState(false)
@@ -30,7 +31,7 @@ export function ClickArea({ onPrestigeClick }: Props) {
   const handleClick = useCallback((e: React.MouseEvent) => {
     const earned = click()
     setIsFlashing(true)
-    setTimeout(() => setIsFlashing(false), 100)
+    setTimeout(() => setIsFlashing(false), 80)
 
     const rect = btnRef.current?.getBoundingClientRect()
     const x = rect ? rect.left + Math.random() * rect.width * 0.6 + rect.width * 0.2 : e.clientX
@@ -44,62 +45,56 @@ export function ClickArea({ onPrestigeClick }: Props) {
   const canPrestige = totalBitsEarned >= PRESTIGE_UNLOCK_BITS
 
   return (
-    <div className="flex flex-col items-center gap-6 py-6">
-      {/* Terminal stats */}
-      <div className="w-full max-w-xs font-mono text-xs text-slate-500 space-y-1 px-4">
-        <div className="flex justify-between">
-          <span>bits/click</span>
-          <span className="text-cyan-400">{formatBits(bitsPerClick)}</span>
+    <div className="flex flex-col items-center gap-8 py-8 w-full max-w-md px-6">
+
+      {/* Stats row */}
+      <div className="w-full grid grid-cols-2 gap-2">
+        <div className="card border-slate-800/40 px-4 py-2.5 text-center">
+          <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-0.5">per click</div>
+          <div className="font-mono text-sm font-semibold text-cyan-400">{formatBits(bitsPerClick)}</div>
         </div>
-        <div className="flex justify-between">
-          <span>bits/sec</span>
-          <span className="text-cyan-400">{formatRate(bitsPerSecond)}</span>
+        <div className="card border-slate-800/40 px-4 py-2.5 text-center">
+          <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-0.5">per second</div>
+          <div className="font-mono text-sm font-semibold text-cyan-400">{formatRate(bitsPerSecond)}</div>
         </div>
         {ghostCredits > 0 && (
-          <div className="flex justify-between">
-            <span>ghost credits</span>
-            <span className="neon-purple">{Math.floor(ghostCredits)}</span>
+          <div className="card border-purple-900/30 px-4 py-2.5 text-center col-span-2">
+            <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-0.5">ghost credits</div>
+            <div className="font-mono text-sm font-semibold neon-purple">{Math.floor(ghostCredits)}</div>
           </div>
         )}
       </div>
 
       {/* Main click button */}
-      <div className="relative">
+      <div className="relative flex items-center justify-center">
         <button
           ref={btnRef}
           onClick={handleClick}
           className={`
-            click-btn relative w-44 h-44 md:w-52 md:h-52 rounded-full
-            border-2 border-cyan-500/60
+            click-btn relative w-52 h-52 md:w-64 md:h-64 rounded-full
+            border-2 border-cyan-500/50
             bg-[#050a14]
-            flex flex-col items-center justify-center gap-2
+            flex flex-col items-center justify-center gap-3
             cursor-pointer select-none
             transition-transform active:scale-95
             ${isFlashing ? 'bg-cyan-900/20' : ''}
           `}
           style={{
             boxShadow: isFlashing
-              ? '0 0 50px rgba(0, 245, 255, 0.5), inset 0 0 30px rgba(0, 245, 255, 0.15)'
-              : undefined,
+              ? '0 0 60px rgba(0, 245, 255, 0.4), inset 0 0 40px rgba(0, 245, 255, 0.1)'
+              : '0 0 20px rgba(0, 245, 255, 0.05)',
           }}
         >
-          {/* Outer ring decoration */}
-          <div className="absolute inset-2 rounded-full border border-cyan-900/40" />
-          <div className="absolute inset-4 rounded-full border border-cyan-900/20" />
+          <div className="absolute inset-3 rounded-full border border-cyan-900/30" />
+          <div className="absolute inset-6 rounded-full border border-cyan-900/15" />
 
-          {/* Icon */}
-          <div className="text-4xl md:text-5xl select-none">⌨</div>
-
-          {/* Text */}
-          <div className="font-mono text-xs text-cyan-400/80 tracking-widest">
-            EXECUTE
-          </div>
-          <div className="font-mono text-[10px] text-slate-600 tracking-widest">
+          <div className="text-5xl md:text-6xl select-none">⌨</div>
+          <div className="font-mono text-xs text-cyan-400/70 tracking-[0.3em]">EXECUTE</div>
+          <div className="font-mono text-[10px] text-slate-700 tracking-widest">
             run_script.sh
+            {prestigeCount > 0 && <span className="text-purple-500/60"> v{prestigeCount}</span>}
           </div>
-
-          {/* Cursor blink */}
-          <div className="font-mono text-xs text-cyan-400 absolute bottom-8">
+          <div className="font-mono text-xs text-cyan-500/40 absolute bottom-10">
             <span className="cursor-blink">_</span>
           </div>
         </button>
@@ -116,20 +111,20 @@ export function ClickArea({ onPrestigeClick }: Props) {
         </div>
       ))}
 
-      {/* Prestige button */}
+      {/* Prestige */}
       {canPrestige && (
         <button
           onClick={onPrestigeClick}
           className="
-            font-mono text-xs px-4 py-2 rounded
-            border border-purple-600/50 text-purple-400
+            w-full font-mono text-xs px-4 py-3 rounded
+            border border-purple-600/50 text-purple-300
             bg-purple-900/10
-            hover:bg-purple-900/30 hover:border-purple-500
+            hover:bg-purple-900/25 hover:border-purple-500/70
             transition-all duration-150
             animate-pulse
           "
         >
-          &gt; go_dark.sh —— prestige verfügbar
+          &gt; go_dark.sh — prestige verfügbar
         </button>
       )}
     </div>
