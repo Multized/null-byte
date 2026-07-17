@@ -25,6 +25,7 @@ export function Leaderboard() {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [copied, setCopied] = useState(false)
   const [showSyncImport, setShowSyncImport] = useState(false)
+  const [syncCodeVisible, setSyncCodeVisible] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -93,16 +94,28 @@ export function Leaderboard() {
           <div className="flex items-center justify-between bg-[#060609] rounded px-2.5 py-1.5 border border-slate-800/50">
             <div>
               <div className="font-mono text-[10px] text-slate-600 mb-0.5">sync code</div>
-              <div className="font-mono text-base font-semibold tracking-widest text-cyan-400/80">
+              <div
+                className={`font-mono text-base font-semibold tracking-widest text-cyan-400/80 transition-all duration-200 cursor-pointer select-none ${syncCodeVisible ? '' : 'blur-sm'}`}
+                onClick={() => setSyncCodeVisible(v => !v)}
+                title={syncCodeVisible ? 'verbergen' : 'anzeigen'}
+              >
                 {syncCode}
               </div>
             </div>
-            <button
-              onClick={copySyncCode}
-              className="font-mono text-[10px] text-slate-500 hover:text-cyan-400 transition-colors px-2"
-            >
-              {copied ? '✓ copied' : 'copy'}
-            </button>
+            <div className="flex flex-col items-end gap-1">
+              <button
+                onClick={copySyncCode}
+                className="font-mono text-[10px] text-slate-500 hover:text-cyan-400 transition-colors px-2"
+              >
+                {copied ? '✓ copied' : 'copy'}
+              </button>
+              <button
+                onClick={() => setSyncCodeVisible(v => !v)}
+                className="font-mono text-[10px] text-slate-600 hover:text-slate-400 transition-colors px-2"
+              >
+                {syncCodeVisible ? '◉ hide' : '◎ show'}
+              </button>
+            </div>
           </div>
         )}
 
