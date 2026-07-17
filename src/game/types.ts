@@ -45,4 +45,6 @@ export interface GameState {
   lastActive: number
   playerId: string
   playerName: string
+  playerTag: string
+  syncCode: string
 }

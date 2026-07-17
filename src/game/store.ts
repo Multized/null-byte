@@ -20,8 +20,21 @@ function generatePlayerId(): string {
 function randomAnonName(): string {
   const words = ['ghost', 'null', 'root', 'void', 'hex', 'zero', 'byte', 'dark', 'sys', 'anon']
   const word = words[Math.floor(Math.random() * words.length)]
-  const num = Math.floor(Math.random() * 9000) + 1000
-  return `${word}_${num}`
+  return word
+}
+
+function generateSyncCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let code = ''
+  for (let i = 0; i < 6; i++) {
+    if (i === 3) code += '-'
+    code += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return code
+}
+
+function randomTag(): string {
+  return String(Math.floor(Math.random() * 9000) + 1000)
 }
 
 function defaultState(): GameState {
@@ -37,6 +50,8 @@ function defaultState(): GameState {
     lastActive: Date.now(),
     playerId: generatePlayerId(),
     playerName: '',
+    playerTag: randomTag(),
+    syncCode: generateSyncCode(),
   }
 }
 
@@ -54,7 +69,7 @@ interface GameStore extends GameState {
   buyPrestigeUpgrade: (id: string) => boolean
   loadState: (state: GameState) => void
   updateLastActive: () => void
-  setPlayerName: (name: string) => void
+  setPlayerName: (name: string, tag: string) => void
 }
 
 function computeDerived(state: GameState) {
@@ -179,8 +194,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ lastActive: Date.now() })
   },
 
-  setPlayerName: (name: string) => {
-    set({ playerName: name })
+  setPlayerName: (name: string, tag: string) => {
+    set({ playerName: name, playerTag: tag })
   },
 }))
 
@@ -198,7 +213,9 @@ export function getSerializableState(): GameState {
     lastActive: s.lastActive,
     playerId: s.playerId,
     playerName: s.playerName,
+    playerTag: s.playerTag,
+    syncCode: s.syncCode,
   }
 }
 
-export { randomAnonName }
+export { randomAnonName, randomTag, generateSyncCode }

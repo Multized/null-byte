@@ -23,6 +23,7 @@ export default function App() {
   const playerName = useGameStore(s => s.playerName)
   const totalBitsEarned = useGameStore(s => s.totalBitsEarned)
   const prestigeCount = useGameStore(s => s.prestigeCount)
+  const getState = () => useGameStore.getState()
 
   const [mobileTab, setMobileTab] = useState<MobileTab>('run')
   const [showPrestige, setShowPrestige] = useState(false)
@@ -65,7 +66,7 @@ export default function App() {
     const interval = setInterval(() => {
       saveGame()
       if (playerName && playerId) {
-        submitScore(playerId, playerName, totalBitsEarned, prestigeCount)
+        submitScore(getState())
       }
     }, 30_000)
     return () => clearInterval(interval)
@@ -74,7 +75,7 @@ export default function App() {
   // Submit score immediately after name is set or prestige
   useEffect(() => {
     if (playerName && playerId && totalBitsEarned > 0) {
-      submitScore(playerId, playerName, totalBitsEarned, prestigeCount)
+      submitScore(useGameStore.getState())
     }
   }, [playerName, prestigeCount])
 
@@ -84,7 +85,7 @@ export default function App() {
       updateLastActive()
       saveGame()
       if (playerName && playerId) {
-        submitScore(playerId, playerName, totalBitsEarned, prestigeCount)
+        submitScore(useGameStore.getState())
       }
     }
     window.addEventListener('beforeunload', handler)

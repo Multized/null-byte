@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { fetchLeaderboard, type LeaderboardEntry } from '../game/supabase'
+import { fetchLeaderboard, loadFromSyncCode, type LeaderboardEntry } from '../game/supabase'
 import { useGameStore } from '../game/store'
 import { formatBits } from '../game/utils'
+import { saveGame } from '../game/save'
 
 function timeAgo(iso: string): string {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000
@@ -14,12 +15,16 @@ function timeAgo(iso: string): string {
 export function Leaderboard() {
   const playerId = useGameStore(s => s.playerId)
   const playerName = useGameStore(s => s.playerName)
-  const setPlayerName = useGameStore(s => s.setPlayerName)
+  const playerTag = useGameStore(s => s.playerTag)
+  const syncCode = useGameStore(s => s.syncCode)
+  const loadState = useGameStore(s => s.loadState)
 
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [editingName, setEditingName] = useState(false)
-  const [nameInput, setNameInput] = useState('')
+  const [syncInput, setSyncInput] = useState('')
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [copied, setCopied] = useState(false)
+  const [showSyncImport, setShowSyncImport] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -33,11 +38,27 @@ export function Leaderboard() {
   const myEntry = entries.find(e => e.player_id === playerId)
   const myRank = myEntry?.rank ?? null
 
-  const handleRename = () => {
-    const trimmed = nameInput.trim().slice(0, 24)
-    if (trimmed) setPlayerName(trimmed)
-    setEditingName(false)
-    setNameInput('')
+  const copySyncCode = () => {
+    navigator.clipboard.writeText(syncCode)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleSyncImport = async () => {
+    if (!syncInput.trim()) return
+    setSyncStatus('loading')
+    const state = await loadFromSyncCode(syncInput.trim())
+    if (!state) {
+      setSyncStatus('error')
+      setTimeout(() => setSyncStatus('idle'), 3000)
+      return
+    }
+    loadState(state)
+    saveGame()
+    setSyncStatus('idle')
+    setSyncInput('')
+    setShowSyncImport(false)
+    await load()
   }
 
   return (
@@ -46,42 +67,79 @@ export function Leaderboard() {
         <div className="font-mono text-xs text-slate-600 uppercase tracking-widest">
           &gt; leaderboard
         </div>
-        <button
-          onClick={load}
-          className="font-mono text-[10px] text-slate-600 hover:text-cyan-400 transition-colors"
-        >
+        <button onClick={load} className="font-mono text-[10px] text-slate-600 hover:text-cyan-400 transition-colors">
           ↻ refresh
         </button>
       </div>
 
-      {/* Own position */}
-      <div className="card border-cyan-900/30 p-2.5 space-y-1.5">
+      {/* Own identity card */}
+      <div className="card border-cyan-900/30 p-3 space-y-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-slate-500">Du:</span>
-            {editingName ? (
-              <input
-                type="text"
-                maxLength={24}
-                value={nameInput}
-                onChange={e => setNameInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') setEditingName(false) }}
-                autoFocus
-                className="bg-transparent border-b border-cyan-600 font-mono text-sm text-slate-200 focus:outline-none w-32"
-              />
-            ) : (
-              <span className="font-mono text-sm text-cyan-400">{playerName}</span>
+          <div className="font-mono text-sm">
+            <span className="text-cyan-400">{playerName || '???'}</span>
+            <span className="text-purple-400/70">#{playerTag || '????'}</span>
+            {myRank && (
+              <span className="text-slate-600 text-xs ml-2">#{myRank}</span>
             )}
           </div>
-          {editingName ? (
-            <button onClick={handleRename} className="font-mono text-[10px] text-cyan-400 hover:text-cyan-300">ok</button>
-          ) : (
-            <button onClick={() => { setEditingName(true); setNameInput(playerName) }} className="font-mono text-[10px] text-slate-600 hover:text-slate-400">umbenennen</button>
-          )}
         </div>
-        {myRank && (
-          <div className="font-mono text-xs text-slate-500">
-            Rang <span className="text-cyan-400 font-semibold">#{myRank}</span> von {entries.length}
+
+        {/* Sync Code */}
+        {syncCode && (
+          <div className="flex items-center justify-between bg-[#060609] rounded px-2.5 py-1.5 border border-slate-800/50">
+            <div>
+              <div className="font-mono text-[10px] text-slate-600 mb-0.5">sync code</div>
+              <div className="font-mono text-base font-semibold tracking-widest text-cyan-400/80">
+                {syncCode}
+              </div>
+            </div>
+            <button
+              onClick={copySyncCode}
+              className="font-mono text-[10px] text-slate-500 hover:text-cyan-400 transition-colors px-2"
+            >
+              {copied ? '✓ copied' : 'copy'}
+            </button>
+          </div>
+        )}
+
+        {/* Import sync code */}
+        <button
+          onClick={() => setShowSyncImport(v => !v)}
+          className="font-mono text-[10px] text-slate-600 hover:text-slate-400 transition-colors"
+        >
+          {showSyncImport ? '▲ schließen' : '▼ anderen device syncen'}
+        </button>
+
+        {showSyncImport && (
+          <div className="space-y-2">
+            <div className="font-mono text-[10px] text-slate-600">
+              Code vom anderen Gerät eingeben — überschreibt deinen aktuellen Save!
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={syncInput}
+                onChange={e => setSyncInput(e.target.value.toUpperCase())}
+                onKeyDown={e => e.key === 'Enter' && handleSyncImport()}
+                placeholder="XXX-XXX"
+                maxLength={9}
+                className="
+                  flex-1 bg-[#0a0a12] border border-slate-700 rounded px-2 py-1.5
+                  font-mono text-sm text-slate-200 placeholder:text-slate-600
+                  focus:outline-none focus:border-cyan-600 tracking-widest
+                "
+              />
+              <button
+                onClick={handleSyncImport}
+                disabled={syncStatus === 'loading'}
+                className="font-mono text-xs px-3 py-1.5 rounded border border-cyan-700/50 text-cyan-400 hover:bg-cyan-900/20 disabled:opacity-40 transition-all"
+              >
+                {syncStatus === 'loading' ? '...' : 'load'}
+              </button>
+            </div>
+            {syncStatus === 'error' && (
+              <div className="font-mono text-[10px] text-red-400">Code nicht gefunden.</div>
+            )}
           </div>
         )}
       </div>
@@ -99,37 +157,28 @@ export function Leaderboard() {
               <div
                 key={entry.player_id}
                 className={`
-                  flex items-center gap-2 rounded px-2.5 py-2 border transition-all
-                  ${isMe
-                    ? 'border-cyan-800/50 bg-cyan-950/20'
-                    : 'border-slate-800/30 bg-[#0a0a10]'
-                  }
+                  flex items-center gap-2 rounded px-2.5 py-2 border
+                  ${isMe ? 'border-cyan-800/50 bg-cyan-950/20' : 'border-slate-800/30 bg-[#0a0a10]'}
                 `}
               >
-                {/* Rank */}
                 <div className={`font-mono text-xs w-6 text-right shrink-0 ${
                   entry.rank === 1 ? 'text-yellow-400' :
                   entry.rank === 2 ? 'text-slate-300' :
-                  entry.rank === 3 ? 'text-orange-400' :
-                  'text-slate-600'
+                  entry.rank === 3 ? 'text-orange-400' : 'text-slate-600'
                 }`}>
-                  {entry.rank === 1 ? '👑' : entry.rank === 2 ? '2' : entry.rank === 3 ? '3' : `${entry.rank}`}
+                  {entry.rank === 1 ? '👑' : entry.rank}
                 </div>
 
-                {/* Name */}
-                <div className={`font-mono text-sm flex-1 truncate ${isMe ? 'text-cyan-400' : 'text-slate-300'}`}>
-                  {entry.name}
+                <div className="font-mono text-sm flex-1 truncate">
+                  <span className={isMe ? 'text-cyan-400' : 'text-slate-300'}>{entry.name}</span>
+                  <span className="text-purple-400/60">#{entry.name_tag}</span>
                   {isMe && <span className="text-[10px] text-slate-600 ml-1">(du)</span>}
                 </div>
 
-                {/* Prestige */}
                 {entry.prestige_count > 0 && (
-                  <span className="font-mono text-[10px] text-purple-400/70 shrink-0">
-                    v{entry.prestige_count}
-                  </span>
+                  <span className="font-mono text-[10px] text-purple-400/70 shrink-0">v{entry.prestige_count}</span>
                 )}
 
-                {/* Score */}
                 <div className="font-mono text-xs text-slate-400 shrink-0 text-right">
                   <div>{formatBits(entry.total_bits_earned)}</div>
                   <div className="text-[9px] text-slate-600">{timeAgo(entry.updated_at)}</div>

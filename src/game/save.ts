@@ -32,6 +32,8 @@ export function loadGame(): GameState | null {
       lastActive: data.lastActive ?? Date.now(),
       playerId: data.playerId || crypto.randomUUID(),
       playerName: data.playerName ?? '',
+      playerTag: data.playerTag ?? String(Math.floor(Math.random() * 9000) + 1000),
+      syncCode: data.syncCode ?? '',
     }
   } catch (e) {
     console.error('Load failed:', e)
