@@ -49,6 +49,7 @@ export function ClickArea({ onPrestigeClick }: Props) {
   }, [click])
 
   const canPrestige = totalBitsEarned >= PRESTIGE_UNLOCK_BITS
+  const hasGhostCredits = ghostCredits > 0
 
   return (
     <div className="flex flex-col items-center gap-8 py-8 w-full max-w-md px-6">
@@ -127,20 +128,24 @@ export function ClickArea({ onPrestigeClick }: Props) {
         </div>
       )}
 
-      {/* Prestige */}
-      {canPrestige && (
+      {/* Prestige / Ghost Shop */}
+      {(canPrestige || hasGhostCredits) && (
         <button
           onClick={onPrestigeClick}
-          className="
+          className={`
             w-full font-mono text-xs px-4 py-3 rounded
-            border border-purple-600/50 text-purple-300
-            bg-purple-900/10
-            hover:bg-purple-900/25 hover:border-purple-500/70
-            transition-all duration-150
-            animate-pulse
-          "
+            border text-purple-300 bg-purple-900/10
+            hover:bg-purple-900/25 transition-all duration-150
+            ${canPrestige
+              ? 'border-purple-600/50 hover:border-purple-500/70 animate-pulse'
+              : 'border-purple-800/40 hover:border-purple-700/60'
+            }
+          `}
         >
-          &gt; go_dark.sh — prestige verfügbar
+          {canPrestige
+            ? '> go_dark.sh — prestige verfügbar'
+            : `> ghost_shop.sh — ${Math.floor(ghostCredits)} gc verfügbar`
+          }
         </button>
       )}
     </div>
