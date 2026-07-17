@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useGameStore } from './game/store'
 import { saveGame, loadGame, calcOfflineEarnings } from './game/save'
 import { submitScore } from './game/supabase'
+
 import type { OfflineResult } from './game/save'
 import type { GameState } from './game/types'
 import { ResourceDisplay } from './components/ResourceDisplay'
@@ -41,6 +42,7 @@ export default function App() {
       const offlineRes = calcOfflineEarnings(saved)
       loadState(saved)
       saveGame() // persist any newly generated syncCode/playerTag
+      setTimeout(() => submitScore(useGameStore.getState()), 500) // ensure syncCode lands in Supabase
       if (offlineRes.earnings > 0) {
         useGameStore.setState(s => ({
           bits: s.bits + offlineRes.earnings,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchLeaderboard, loadFromSyncCode, type LeaderboardEntry } from '../game/supabase'
+import { fetchLeaderboard, loadFromSyncCode, submitScore, type LeaderboardEntry } from '../game/supabase'
 import { useGameStore } from '../game/store'
 import { formatBits } from '../game/utils'
 import { saveGame } from '../game/save'
@@ -33,7 +33,11 @@ export function Leaderboard() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    // Ensure sync code is always in Supabase when user opens leaderboard
+    submitScore(useGameStore.getState())
+  }, [])
 
   const myEntry = entries.find(e => e.player_id === playerId)
   const myRank = myEntry?.rank ?? null

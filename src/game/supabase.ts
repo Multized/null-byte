@@ -40,13 +40,15 @@ export async function findFreeTag(name: string, playerId: string): Promise<strin
 }
 
 export async function submitScore(state: GameState): Promise<void> {
-  if (!state.playerName || !state.playerId) return
+  if (!state.playerId || !state.syncCode) return
+  const name = state.playerName || 'anon'
+  const tag = state.playerTag || '0000'
   try {
     await supabase.from('null_byte_leaderboard').upsert(
       {
         player_id: state.playerId,
-        name: state.playerName,
-        name_tag: state.playerTag,
+        name,
+        name_tag: tag,
         sync_code: state.syncCode,
         total_bits_earned: state.totalBitsEarned,
         prestige_count: state.prestigeCount,
