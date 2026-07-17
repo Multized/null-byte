@@ -15,6 +15,7 @@ import { NameModal } from './components/NameModal'
 import { Leaderboard, type LeaderboardEntry } from './components/Leaderboard'
 import { AccountPanel } from './components/AccountPanel'
 import { OnboardingHint } from './components/OnboardingHint'
+import { EventPopup, type GameEvent, type GameEventType } from './components/EventPopup'
 import { isUpgradeUnlocked } from './game/utils'
 import { UPGRADES } from './game/constants'
 
@@ -39,6 +40,8 @@ export default function App() {
   const [showNameModal, setShowNameModal] = useState(false)
   const [offlineResult, setOfflineResult] = useState<{ result: OfflineResult; state: GameState } | null>(null)
   const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([])
+  const [activeEvent, setActiveEvent] = useState<GameEvent | null>(null)
+  const eventIdRef = useRef(0)
   const initialized = useRef(false)
 
   // Available upgrade count for badge
@@ -92,6 +95,23 @@ export default function App() {
       submitScore(useGameStore.getState())
     }
   }, [playerName, prestigeCount])
+
+  // Random quicktime events — spawn every 3–8 minutes
+  useEffect(() => {
+    const EVENT_TYPES: GameEventType[] = ['zero_day', 'data_exfil', 'overclock']
+    const scheduleNext = () => {
+      const delay = (180 + Math.random() * 300) * 1000 // 3–8 min
+      return setTimeout(() => {
+        if (!activeEvent) {
+          const type = EVENT_TYPES[Math.floor(Math.random() * EVENT_TYPES.length)]
+          setActiveEvent({ id: ++eventIdRef.current, type })
+        }
+        scheduleNext()
+      }, delay)
+    }
+    const t = scheduleNext()
+    return () => clearTimeout(t)
+  }, [])
 
   // Save on tab close
   useEffect(() => {
@@ -221,6 +241,13 @@ export default function App() {
       </div>
 
       <OnboardingHint />
+      {activeEvent && (
+        <EventPopup
+          event={activeEvent}
+          onClaim={() => setActiveEvent(null)}
+          onExpire={() => setActiveEvent(null)}
+        />
+      )}
       {showPrestige && <PrestigeModal onClose={() => setShowPrestige(false)} />}
       {showNameModal && <NameModal onClose={() => setShowNameModal(false)} />}
       {offlineResult && (

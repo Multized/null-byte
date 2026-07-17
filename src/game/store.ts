@@ -60,6 +60,11 @@ interface GameStore extends GameState {
   bitsPerSecond: number
   bitsPerClick: number
 
+  // Event multipliers (not persisted)
+  eventBpsMultiplier: number
+  eventClickMultiplier: number
+  eventExpiresAt: number
+
   // Actions
   click: () => number
   tick: (delta: number) => void
@@ -70,6 +75,9 @@ interface GameStore extends GameState {
   loadState: (state: GameState) => void
   updateLastActive: () => void
   setPlayerName: (name: string, tag: string) => void
+  activateEventBps: (multiplier: number, durationMs: number) => void
+  activateEventClick: (multiplier: number, durationMs: number) => void
+  addInstantBits: (amount: number) => void
 }
 
 function computeDerived(state: GameState) {
@@ -83,10 +91,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   ...defaultState(),
   bitsPerSecond: 0,
   bitsPerClick: 1,
+  eventBpsMultiplier: 1,
+  eventClickMultiplier: 1,
+  eventExpiresAt: 0,
 
   click: () => {
     const state = get()
-    const bpc = calcBitsPerClick(state)
+    const now = Date.now()
+    const clickMult = now < state.eventExpiresAt ? state.eventClickMultiplier : 1
+    const bpc = calcBitsPerClick(state) * clickMult
     set(s => {
       const next: Partial<GameState> = {
         bits: s.bits + bpc,
@@ -99,13 +112,37 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   tick: (delta: number) => {
     const state = get()
-    const bps = calcBitsPerSecond(state)
+    const now = Date.now()
+    // Expire event multipliers
+    if (state.eventExpiresAt > 0 && now >= state.eventExpiresAt) {
+      set({ eventBpsMultiplier: 1, eventClickMultiplier: 1, eventExpiresAt: 0 })
+    }
+    const bpsMult = now < state.eventExpiresAt ? state.eventBpsMultiplier : 1
+    const bps = calcBitsPerSecond(state) * bpsMult
     const earned = bps * delta
     if (earned <= 0) return
     set(s => {
       const next: Partial<GameState> = {
         bits: s.bits + earned,
         totalBitsEarned: s.totalBitsEarned + earned,
+      }
+      return { ...next, ...computeDerived({ ...s, ...next }) }
+    })
+  },
+
+  activateEventBps: (multiplier: number, durationMs: number) => {
+    set({ eventBpsMultiplier: multiplier, eventClickMultiplier: 1, eventExpiresAt: Date.now() + durationMs })
+  },
+
+  activateEventClick: (multiplier: number, durationMs: number) => {
+    set({ eventClickMultiplier: multiplier, eventBpsMultiplier: 1, eventExpiresAt: Date.now() + durationMs })
+  },
+
+  addInstantBits: (amount: number) => {
+    set(s => {
+      const next: Partial<GameState> = {
+        bits: s.bits + amount,
+        totalBitsEarned: s.totalBitsEarned + amount,
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })

@@ -23,6 +23,12 @@ export function ClickArea({ onPrestigeClick }: Props) {
   const totalBitsEarned = useGameStore(s => s.totalBitsEarned)
   const ghostCredits = useGameStore(s => s.ghostCredits)
   const prestigeCount = useGameStore(s => s.prestigeCount)
+  const eventBpsMultiplier = useGameStore(s => s.eventBpsMultiplier)
+  const eventClickMultiplier = useGameStore(s => s.eventClickMultiplier)
+  const eventExpiresAt = useGameStore(s => s.eventExpiresAt)
+  const now = Date.now()
+  const eventActive = eventExpiresAt > now
+  const eventSecondsLeft = eventActive ? Math.ceil((eventExpiresAt - now) / 1000) : 0
 
   const [floats, setFloats] = useState<FloatText[]>([])
   const [isFlashing, setIsFlashing] = useState(false)
@@ -110,6 +116,16 @@ export function ClickArea({ onPrestigeClick }: Props) {
           {f.text}
         </div>
       ))}
+
+      {/* Active event indicator */}
+      {eventActive && (
+        <div className="w-full flex items-center justify-between px-3 py-2 rounded border border-green-700/40 bg-green-900/10 font-mono text-xs">
+          <span className="text-green-400">
+            {eventBpsMultiplier > 1 ? `⚡ ${eventBpsMultiplier}× BPS aktiv` : `⚡ ${eventClickMultiplier}× Click aktiv`}
+          </span>
+          <span className="text-green-600">{eventSecondsLeft}s</span>
+        </div>
+      )}
 
       {/* Prestige */}
       {canPrestige && (
