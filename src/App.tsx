@@ -12,7 +12,8 @@ import { UpgradePanel } from './components/UpgradePanel'
 import { PrestigeModal } from './components/PrestigeModal'
 import { OfflineModal } from './components/OfflineModal'
 import { NameModal } from './components/NameModal'
-import { Leaderboard } from './components/Leaderboard'
+import { Leaderboard, type LeaderboardEntry } from './components/Leaderboard'
+import { AccountPanel } from './components/AccountPanel'
 
 type MobileTab = 'run' | 'shop' | 'upgrades' | 'rank'
 
@@ -30,6 +31,7 @@ export default function App() {
   const [showPrestige, setShowPrestige] = useState(false)
   const [showNameModal, setShowNameModal] = useState(false)
   const [offlineResult, setOfflineResult] = useState<{ result: OfflineResult; state: GameState } | null>(null)
+  const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([])
   const initialized = useRef(false)
 
   // Load save & calc offline on mount
@@ -111,9 +113,14 @@ export default function App() {
           <ClickArea onPrestigeClick={() => setShowPrestige(true)} />
         </div>
         <div className="w-80 border-l border-slate-800/50 overflow-y-auto flex flex-col">
-          <ProducerList />
+          <div className="p-2">
+            <AccountPanel entries={leaderboardEntries} />
+          </div>
+          <div className="border-t border-slate-800/50">
+            <ProducerList />
+          </div>
           <div className="border-t border-slate-800/50 mt-2">
-            <Leaderboard />
+            <Leaderboard onEntriesChange={setLeaderboardEntries} />
           </div>
         </div>
       </div>
@@ -124,7 +131,12 @@ export default function App() {
           {mobileTab === 'run' && <ClickArea onPrestigeClick={() => setShowPrestige(true)} />}
           {mobileTab === 'shop' && <ProducerList />}
           {mobileTab === 'upgrades' && <UpgradePanel />}
-          {mobileTab === 'rank' && <Leaderboard />}
+          {mobileTab === 'rank' && (
+            <div className="space-y-2 p-2">
+              <AccountPanel entries={leaderboardEntries} />
+              <Leaderboard onEntriesChange={setLeaderboardEntries} />
+            </div>
+          )}
         </div>
 
         <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#080810]/95 backdrop-blur-sm border-t border-slate-800/70 flex">
