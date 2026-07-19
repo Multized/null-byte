@@ -11,9 +11,11 @@ export function ContractsPanel() {
   const claimContract = useGameStore(s => s.claimContract)
   const state = useGameStore(s => s)
 
+  // Keep the slots filled — re-runs whenever the list empties (reset, sync-import, etc.),
+  // not just on mount, so the player can never end up stuck with no contracts.
   useEffect(() => {
     ensureContracts()
-  }, [ensureContracts])
+  }, [ensureContracts, activeContracts.length])
 
   const handleClaim = (id: string) => {
     const claimed = claimContract(id)

@@ -347,6 +347,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       penaltyExpiresAt: 0,
     })
     get().syncQuest()
+    get().ensureContracts()
   },
 
   updateLastActive: () => {
