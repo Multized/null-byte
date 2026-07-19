@@ -145,7 +145,7 @@ export default function App() {
   const scanlineOpacity = 0.02 + visualTier * 0.012
 
   return (
-    <div className="min-h-dvh bg-[#050508] flex flex-col">
+    <div className="h-dvh bg-[#050508] flex flex-col overflow-hidden">
       {/* Ambient glow that intensifies and shifts hue with progress tier */}
       <div
         className="fixed inset-0 pointer-events-none z-0 transition-[background] duration-1000"
@@ -156,17 +156,17 @@ export default function App() {
       <ResourceDisplay />
 
       {/* Desktop Layout */}
-      <div className="hidden md:flex flex-1 overflow-hidden">
+      <div className="hidden md:flex flex-1 min-h-0 overflow-hidden">
 
         {/* Left: Gameplay — click area takes full focus */}
-        <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto relative">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center overflow-y-auto relative">
           {/* subtle scanline bg, intensifies with progress tier */}
           <div className="scanline pointer-events-none absolute inset-0 transition-opacity duration-1000" style={{ opacity: scanlineOpacity }} />
           <ClickArea onPrestigeClick={() => setShowPrestige(true)} />
         </div>
 
         {/* Right: Tabbed management panel */}
-        <div className="w-[380px] border-l border-slate-800/50 flex flex-col overflow-hidden bg-[#06060a]">
+        <div className="w-[380px] min-h-0 border-l border-slate-800/50 flex flex-col overflow-hidden bg-[#06060a]">
 
           {/* Tab bar */}
           <div className="flex border-b border-slate-800/50 shrink-0">
@@ -197,7 +197,7 @@ export default function App() {
           </div>
 
           {/* Tab content */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {desktopTab === 'shop' && <ProducerList />}
             {desktopTab === 'mods' && <UpgradePanel />}
             {desktopTab === 'agent' && (
@@ -218,8 +218,8 @@ export default function App() {
       </div>
 
       {/* Mobile Layout */}
-      <div className="md:hidden flex-1 overflow-hidden flex flex-col">
-        <div className="flex-1 overflow-y-auto pb-16">
+      <div className="md:hidden flex-1 min-h-0 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto pb-16">
           {mobileTab === 'run' && <ClickArea onPrestigeClick={() => setShowPrestige(true)} />}
           {mobileTab === 'shop' && <ProducerList />}
           {mobileTab === 'upgrades' && <UpgradePanel />}
