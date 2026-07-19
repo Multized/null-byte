@@ -140,7 +140,7 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
   const showPrestigeTeaser = !canPrestige && prestigeCount === 0 && prestigeProgress > 0.02
 
   return (
-    <div className="flex flex-col items-center w-full max-w-md px-6 pt-6 md:pt-10 pb-8 gap-7">
+    <div className="flex flex-col items-center w-full max-w-md px-6 pt-4 md:pt-5 pb-6 gap-5">
 
       {/* HUD stat strip */}
       <div className="relative w-full">
@@ -175,7 +175,7 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
           ref={btnRef}
           onClick={handleClick}
           className={`
-            click-btn relative w-56 h-56 md:w-72 md:h-72 rounded-full
+            click-btn relative w-52 h-52 md:w-60 md:h-60 rounded-full
             border-2 border-cyan-500/50
             bg-[#050a14]
             flex flex-col items-center justify-center gap-3
