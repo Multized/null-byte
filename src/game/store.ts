@@ -87,6 +87,7 @@ function defaultState(): GameState {
     earnedTitles: [],
     earnedArtifacts: [],
     activeTitle: null,
+    autoBuyEnabled: true,
   }
 }
 
@@ -123,6 +124,7 @@ interface GameStore extends GameState {
   syncQuest: () => void
   claimQuest: () => { questId: string; title?: string; artifact?: string } | null
   setActiveTitle: (id: string | null) => void
+  setAutoBuyEnabled: (enabled: boolean) => void
 }
 
 function computeDerived(state: GameState) {
@@ -180,7 +182,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (earned <= 0) return
     get().checkAchievements()
 
-    if (hasAutoBuy(get())) {
+    if (hasAutoBuy(get()) && get().autoBuyEnabled) {
       const s = get()
       let cheapestId: string | null = null
       let cheapestCost = Infinity
@@ -453,6 +455,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(s => (id === null || s.earnedTitles.includes(id) ? { activeTitle: id } : {}))
   },
 
+  setAutoBuyEnabled: (enabled: boolean) => {
+    set({ autoBuyEnabled: enabled })
+  },
+
   checkAchievements: () => {
     get().syncQuest()
     const state = get()
@@ -503,6 +509,7 @@ export function getSerializableState(): GameState {
     earnedTitles: s.earnedTitles,
     earnedArtifacts: s.earnedArtifacts,
     activeTitle: s.activeTitle,
+    autoBuyEnabled: s.autoBuyEnabled,
   }
 }
 

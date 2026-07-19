@@ -36,6 +36,8 @@ export function GhostShopModal({ onClose }: Props) {
   const ghostCredits = useGameStore(s => s.ghostCredits)
   const purchasedPrestigeUpgrades = useGameStore(s => s.purchasedPrestigeUpgrades)
   const buyPrestigeUpgrade = useGameStore(s => s.buyPrestigeUpgrade)
+  const autoBuyEnabled = useGameStore(s => s.autoBuyEnabled)
+  const setAutoBuyEnabled = useGameStore(s => s.setAutoBuyEnabled)
 
   const economyUpgrades = PRESTIGE_UPGRADES.filter(u => ECONOMY_EFFECTS.includes(u.effect))
   const utilityUpgrades = PRESTIGE_UPGRADES.filter(u => !ECONOMY_EFFECTS.includes(u.effect))
@@ -44,6 +46,44 @@ export function GhostShopModal({ onClose }: Props) {
     const bought = purchasedPrestigeUpgrades[u.id] ?? 0
     const maxed = bought >= u.maxPurchases
     const canAfford = ghostCredits >= u.cost && !maxed
+
+    // Once the autonomous agent is owned, show an on/off toggle instead of a dead MAXED row
+    if (u.effect === 'auto_buy' && bought > 0) {
+      return (
+        <div
+          key={u.id}
+          className="w-full text-left rounded p-2.5 border border-purple-700/40 bg-purple-950/10"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-sm text-slate-200">{u.name}</span>
+                <span className={`font-mono text-[10px] ${autoBuyEnabled ? 'text-green-500' : 'text-slate-500'}`}>
+                  {autoBuyEnabled ? 'AN' : 'AUS'}
+                </span>
+              </div>
+              <div className="font-mono text-xs text-purple-400/70 mt-0.5">{u.description}</div>
+              <div className="font-mono text-[10px] text-slate-600 italic mt-0.5">"{u.flavor}"</div>
+            </div>
+            <button
+              onClick={() => { setAutoBuyEnabled(!autoBuyEnabled); playSound('buy') }}
+              role="switch"
+              aria-checked={autoBuyEnabled}
+              title={autoBuyEnabled ? 'Auto-Buy abschalten' : 'Auto-Buy einschalten'}
+              className={`shrink-0 relative w-11 h-6 rounded-full transition-colors duration-150 ${
+                autoBuyEnabled ? 'bg-green-600/70' : 'bg-slate-700/70'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-slate-100 transition-transform duration-150 ${
+                  autoBuyEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      )
+    }
 
     return (
       <button

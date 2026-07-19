@@ -87,4 +87,5 @@ export interface GameState {
   earnedTitles: string[]
   earnedArtifacts: string[]
   activeTitle: string | null
+  autoBuyEnabled: boolean
 }
