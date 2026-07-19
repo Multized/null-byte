@@ -116,10 +116,6 @@ export function rollContract(state: GameState): ActiveContract {
 
   const bps = calcBitsPerSecond(state)
   const reward = Math.max(100, Math.ceil(bps * tpl.rewardSeconds))
-  const rewardGc =
-    state.prestigeCount > 0 && Math.random() < tpl.gcChance
-      ? 1 + (Math.random() < 0.2 ? 1 : 0)
-      : 0
 
   return {
     id: `c${Date.now()}_${contractIdCounter++}`,
@@ -127,7 +123,8 @@ export function rollContract(state: GameState): ActiveContract {
     target: tpl.makeTarget(state),
     baseline: tpl.counter(state),
     reward,
-    rewardGc,
+    // Ghost Credits come only from prestige — contracts pay in bits
+    rewardGc: 0,
   }
 }
 

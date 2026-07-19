@@ -76,24 +76,19 @@ export function DataPacketLayer() {
     const bps = store.bitsPerSecond
     const r = Math.random()
     let text: string
-    if (r < 0.5) {
+    if (r < 0.45) {
       const amount = Math.max(25, bps * (90 + Math.random() * 150))
       store.addInstantBits(amount)
       text = `+${formatBits(amount)}`
-    } else if (r < 0.75) {
+    } else if (r < 0.7) {
       store.activateEventBps(2, 45_000)
       text = '2× BPS · 45s'
-    } else if (r < 0.95) {
+    } else if (r < 0.9) {
       store.activateEventClick(3, 30_000)
       text = '3× Click · 30s'
-    } else if (store.prestigeCount > 0) {
-      useGameStore.setState(s => ({
-        ghostCredits: s.ghostCredits + 1,
-        totalGhostCreditsEarned: s.totalGhostCreditsEarned + 1,
-      }))
-      text = '+1 Ghost Credit'
     } else {
-      const amount = Math.max(50, bps * 300)
+      // Jackpot bits (Ghost Credits come only from prestige)
+      const amount = Math.max(50, bps * 360)
       store.addInstantBits(amount)
       text = `+${formatBits(amount)}`
     }

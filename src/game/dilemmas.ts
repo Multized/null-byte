@@ -90,19 +90,22 @@ export const DILEMMAS: DilemmaDef[] = [
   {
     id: 'whistleblower',
     contact: 'V',
-    scenario: '"Ich brauche Rechenzeit für ein Leak, das die Richtigen treffen wird. Leih mir deine Kapazität — 5 Minuten gedrosselt. Ich zahl in Ghost Credits. Sauber."',
-    unlock: s => s.prestigeCount >= 1,
+    scenario: '"Ich brauche Rechenzeit für ein Leak, das die Richtigen treffen wird. Leih mir deine Kapazität — 5 Minuten gedrosselt. Die Gegenleistung ist es wert. Sauber."',
+    unlock: () => true,
     choices: [
       {
         label: 'Kapazität leihen',
-        detail: '5min −20% BPS · dafür sichere +3 gc',
+        detail: '5min −20% BPS · dafür eine sichere Bits-Auszahlung',
         kind: 'sacrifice',
-        resolve: () => ({
-          message: 'Das Leak ist live. Drei Ghost Credits landen in deinem Wallet.',
-          ghostCredits: 3,
-          penalty: { mult: 0.8, durationMs: 300_000 },
-          tone: 'good',
-        }),
+        resolve: s => {
+          const payout = Math.max(200, Math.floor(calcBitsPerSecond(s) * 720))
+          return {
+            message: `Das Leak ist live. Als Dank landen ${payout} Bits in deinem Wallet.`,
+            bits: payout,
+            penalty: { mult: 0.8, durationMs: 300_000 },
+            tone: 'good',
+          }
+        },
       },
       DECLINE,
     ],
@@ -180,13 +183,13 @@ export const DILEMMAS: DilemmaDef[] = [
     choices: [
       {
         label: 'All in',
-        detail: '−80% Bits · 50%: ×4 zurück + 5 gc, 50%: alles weg',
+        detail: '−80% Bits · 50%: ×5 zurück, 50%: alles weg',
         kind: 'gamble',
         disabled: s => s.bits < 1000,
         resolve: s => {
           const stake = Math.floor(s.bits * 0.8)
           if (Math.random() < 0.5) {
-            return { message: `Der Sammler nickt anerkennend. ${stake * 4} Bits und ein Bonus obendrauf.`, bits: stake * 3, ghostCredits: 5, won: true, tone: 'good' }
+            return { message: `Der Sammler nickt anerkennend. ${stake * 5} Bits fließen zurück.`, bits: stake * 4, won: true, tone: 'good' }
           }
           return { message: 'Der Deal platzt. Der Sammler zuckt mit den Schultern. Dein Einsatz ist weg.', bits: -stake, won: false, tone: 'bad' }
         },
