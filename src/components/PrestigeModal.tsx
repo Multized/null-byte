@@ -1,6 +1,7 @@
 import { useGameStore } from '../game/store'
 import { formatBits, calcGhostCreditsFromBits } from '../game/utils'
 import { PRESTIGE_UPGRADES } from '../game/constants'
+import { playSound } from '../game/sound'
 
 interface Props {
   onClose: () => void
@@ -19,6 +20,7 @@ export function PrestigeModal({ onClose }: Props) {
 
   const handlePrestige = () => {
     prestige()
+    playSound('prestige')
     onClose()
   }
 
@@ -68,7 +70,7 @@ export function PrestigeModal({ onClose }: Props) {
                 return (
                   <button
                     key={u.id}
-                    onClick={() => buyPrestigeUpgrade(u.id)}
+                    onClick={() => { if (buyPrestigeUpgrade(u.id)) playSound('upgrade') }}
                     disabled={!canAfford}
                     className={`
                       w-full text-left rounded p-2.5 border transition-all duration-150

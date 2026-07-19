@@ -1,6 +1,6 @@
 import type { GameState } from './types'
 import { useGameStore, getSerializableState, generateSyncCode, randomTag } from './store'
-import { calcBitsPerSecond, getOfflineCapHours } from './utils'
+import { calcBitsPerSecond, getOfflineCapHours, calcOfflineEfficiency } from './utils'
 import { SAVE_KEY } from './constants'
 
 export function saveGame(): void {
@@ -34,6 +34,10 @@ export function loadGame(): GameState | null {
       playerName: data.playerName ?? '',
       playerTag: data.playerTag || randomTag(),
       syncCode: data.syncCode || generateSyncCode(),
+      totalClicks: data.totalClicks ?? 0,
+      totalEventsClaimed: data.totalEventsClaimed ?? 0,
+      maxCombo: data.maxCombo ?? 0,
+      unlockedAchievements: data.unlockedAchievements ?? [],
     }
   } catch (e) {
     console.error('Load failed:', e)
@@ -57,7 +61,7 @@ export function calcOfflineEarnings(state: GameState): OfflineResult {
   const capSeconds = getOfflineCapHours(state) * 3600
   const cappedSeconds = Math.min(elapsed, capSeconds)
   const bps = calcBitsPerSecond(state)
-  const earnings = bps * cappedSeconds * 0.5 // 50% offline efficiency
+  const earnings = bps * cappedSeconds * calcOfflineEfficiency(state)
   return {
     earnings,
     seconds: cappedSeconds,

@@ -4,11 +4,15 @@ import {
   calcBitsPerSecond,
   calcBitsPerClick,
   calcGhostCreditsFromBits,
-  calcProducerCost,
+  calcMaxAffordable,
+  calcBulkProducerCost,
   getStartBits,
   isUpgradeUnlocked,
+  hasAutoBuy,
 } from './utils'
-import { UPGRADES, PRESTIGE_UPGRADES, PRESTIGE_UNLOCK_BITS } from './constants'
+import { UPGRADES, PRESTIGE_UPGRADES, PRESTIGE_UNLOCK_BITS, MILESTONE_THRESHOLDS, PRODUCERS } from './constants'
+import { findNewlyUnlocked } from './achievements'
+import { emitToast } from './toastBus'
 
 function generatePlayerId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -52,6 +56,10 @@ function defaultState(): GameState {
     playerName: '',
     playerTag: randomTag(),
     syncCode: generateSyncCode(),
+    totalClicks: 0,
+    totalEventsClaimed: 0,
+    maxCombo: 0,
+    unlockedAchievements: [],
   }
 }
 
@@ -66,9 +74,9 @@ interface GameStore extends GameState {
   eventExpiresAt: number
 
   // Actions
-  click: () => number
+  click: (comboMultiplier?: number) => number
   tick: (delta: number) => void
-  buyProducer: (id: string) => boolean
+  buyProducer: (id: string, qty?: number) => { bought: number; cost: number; milestoneReached: number | null }
   buyUpgrade: (id: string) => boolean
   prestige: () => void
   buyPrestigeUpgrade: (id: string) => boolean
@@ -78,6 +86,9 @@ interface GameStore extends GameState {
   activateEventBps: (multiplier: number, durationMs: number) => void
   activateEventClick: (multiplier: number, durationMs: number) => void
   addInstantBits: (amount: number) => void
+  recordEventClaim: () => void
+  recordCombo: (combo: number) => void
+  checkAchievements: () => string[]
 }
 
 function computeDerived(state: GameState) {
@@ -95,18 +106,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
   eventClickMultiplier: 1,
   eventExpiresAt: 0,
 
-  click: () => {
+  click: (comboMultiplier = 1) => {
     const state = get()
     const now = Date.now()
     const clickMult = now < state.eventExpiresAt ? state.eventClickMultiplier : 1
-    const bpc = calcBitsPerClick(state) * clickMult
+    const bpc = calcBitsPerClick(state) * clickMult * comboMultiplier
     set(s => {
       const next: Partial<GameState> = {
         bits: s.bits + bpc,
         totalBitsEarned: s.totalBitsEarned + bpc,
+        totalClicks: s.totalClicks + 1,
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })
+    get().checkAchievements()
     return bpc
   },
 
@@ -128,6 +141,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })
+    get().checkAchievements()
+
+    if (hasAutoBuy(get())) {
+      const s = get()
+      let cheapestId: string | null = null
+      let cheapestCost = Infinity
+      for (const def of PRODUCERS) {
+        const owned = s.producers[def.id] ?? 0
+        const cost = calcBulkProducerCost(def.id, owned, 1)
+        if (cost < cheapestCost) {
+          cheapestCost = cost
+          cheapestId = def.id
+        }
+      }
+      if (cheapestId && s.bits >= cheapestCost) {
+        get().buyProducer(cheapestId, 1)
+      }
+    }
   },
 
   activateEventBps: (multiplier: number, durationMs: number) => {
@@ -148,20 +179,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     })
   },
 
-  buyProducer: (id: string) => {
+  buyProducer: (id: string, qty = 1) => {
     const state = get()
     const owned = state.producers[id] ?? 0
-    const cost = calcProducerCost(id, owned)
-    if (state.bits < cost) return false
+    const maxAffordable = calcMaxAffordable(id, owned, state.bits)
+    const actualQty = Math.min(qty, maxAffordable)
+    if (actualQty <= 0) return { bought: 0, cost: 0, milestoneReached: null }
+    const cost = calcBulkProducerCost(id, owned, actualQty)
+    const newOwned = owned + actualQty
+    const milestoneReached = MILESTONE_THRESHOLDS.find(t => owned < t && newOwned >= t) ?? null
     set(s => {
-      const producers = { ...s.producers, [id]: (s.producers[id] ?? 0) + 1 }
+      const producers = { ...s.producers, [id]: newOwned }
       const next: Partial<GameState> = {
         bits: s.bits - cost,
         producers,
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })
-    return true
+    get().checkAchievements()
+    return { bought: actualQty, cost, milestoneReached }
   },
 
   buyUpgrade: (id: string) => {
@@ -179,6 +215,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })
+    get().checkAchievements()
     return true
   },
 
@@ -200,6 +237,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
       return { ...next, ...computeDerived({ ...s, ...next } as GameState) }
     })
+    get().checkAchievements()
   },
 
   buyPrestigeUpgrade: (id: string) => {
@@ -220,6 +258,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })
+    get().checkAchievements()
     return true
   },
 
@@ -233,6 +272,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setPlayerName: (name: string, tag: string) => {
     set({ playerName: name, playerTag: tag })
+  },
+
+  recordEventClaim: () => {
+    set(s => ({ totalEventsClaimed: s.totalEventsClaimed + 1 }))
+    get().checkAchievements()
+  },
+
+  recordCombo: (combo: number) => {
+    if (combo <= get().maxCombo) return
+    set({ maxCombo: combo })
+    get().checkAchievements()
+  },
+
+  checkAchievements: () => {
+    const state = get()
+    const newly = findNewlyUnlocked(state)
+    if (newly.length === 0) return []
+    set(s => {
+      const unlockedAchievements = [...s.unlockedAchievements, ...newly.map(a => a.id)]
+      const next: Partial<GameState> = { unlockedAchievements }
+      return { ...next, ...computeDerived({ ...s, ...next }) }
+    })
+    for (const def of newly) emitToast({ kind: 'achievement', def })
+    return newly.map(a => a.id)
   },
 }))
 
@@ -252,6 +315,10 @@ export function getSerializableState(): GameState {
     playerName: s.playerName,
     playerTag: s.playerTag,
     syncCode: s.syncCode,
+    totalClicks: s.totalClicks,
+    totalEventsClaimed: s.totalEventsClaimed,
+    maxCombo: s.maxCombo,
+    unlockedAchievements: s.unlockedAchievements,
   }
 }
 

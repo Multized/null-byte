@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useGameStore } from '../game/store'
 import { formatBits } from '../game/utils'
+import { playSound } from '../game/sound'
 
 export type GameEventType = 'zero_day' | 'data_exfil' | 'overclock'
 
@@ -46,12 +47,14 @@ export function EventPopup({ event, onClaim, onExpire }: Props) {
   const activateEventBps = useGameStore(s => s.activateEventBps)
   const activateEventClick = useGameStore(s => s.activateEventClick)
   const addInstantBits = useGameStore(s => s.addInstantBits)
+  const recordEventClaim = useGameStore(s => s.recordEventClaim)
 
   const [progress, setProgress] = useState(1) // 1 → 0
   const startRef = useRef(Date.now())
   const frameRef = useRef<number>(0)
 
   useEffect(() => {
+    playSound('event')
     const animate = () => {
       const elapsed = Date.now() - startRef.current
       const p = Math.max(0, 1 - elapsed / WINDOW_MS)
@@ -75,6 +78,8 @@ export function EventPopup({ event, onClaim, onExpire }: Props) {
       const reward = Math.max(bitsPerSecond * 120, 10)
       addInstantBits(reward)
     }
+    playSound('buy')
+    recordEventClaim()
     onClaim()
   }
 

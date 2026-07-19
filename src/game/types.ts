@@ -28,7 +28,7 @@ export interface PrestigeUpgradeDef {
   description: string
   flavor: string
   cost: number
-  effect: 'global_multiplier' | 'click_multiplier' | 'start_bits' | 'ghost_bonus'
+  effect: 'global_multiplier' | 'click_multiplier' | 'start_bits' | 'ghost_bonus' | 'offline_efficiency' | 'auto_buy'
   value: number
   maxPurchases: number
 }
@@ -47,4 +47,8 @@ export interface GameState {
   playerName: string
   playerTag: string
   syncCode: string
+  totalClicks: number
+  totalEventsClaimed: number
+  maxCombo: number
+  unlockedAchievements: string[]
 }

@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import { useGameStore } from '../game/store'
 import { formatBits, formatRate } from '../game/utils'
+import { isMuted, toggleMuted } from '../game/sound'
+import { useTweenedNumber } from '../hooks/useTweenedNumber'
 
 export function ResourceDisplay() {
   const bits = useGameStore(s => s.bits)
@@ -7,6 +10,8 @@ export function ResourceDisplay() {
   const bitsPerSecond = useGameStore(s => s.bitsPerSecond)
   const ghostCredits = useGameStore(s => s.ghostCredits)
   const prestigeCount = useGameStore(s => s.prestigeCount)
+  const [muted, setMutedState] = useState(isMuted())
+  const displayBits = useTweenedNumber(bits)
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800/80 bg-[#050508]/90 backdrop-blur-sm">
@@ -26,7 +31,7 @@ export function ResourceDisplay() {
         {/* Main Resource */}
         <div className="flex-1 text-center">
           <div className="font-mono font-semibold text-lg md:text-2xl neon-cyan leading-none">
-            {formatBits(bits)}
+            {formatBits(displayBits)}
           </div>
           <div className="font-mono text-xs text-slate-500 mt-0.5">
             {formatRate(bitsPerSecond)}
@@ -46,6 +51,15 @@ export function ResourceDisplay() {
             </div>
           )}
         </div>
+
+        {/* Mute toggle */}
+        <button
+          onClick={() => setMutedState(toggleMuted())}
+          title={muted ? 'Sound an' : 'Sound aus'}
+          className="shrink-0 font-mono text-sm text-slate-600 hover:text-cyan-400 transition-colors px-1"
+        >
+          {muted ? '🔇' : '🔊'}
+        </button>
       </div>
     </header>
   )

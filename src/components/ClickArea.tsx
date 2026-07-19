@@ -2,6 +2,8 @@ import { useState, useCallback, useRef } from 'react'
 import { useGameStore } from '../game/store'
 import { formatBits, formatRate } from '../game/utils'
 import { PRESTIGE_UNLOCK_BITS } from '../game/constants'
+import { playSound } from '../game/sound'
+import { useTweenedNumber } from '../hooks/useTweenedNumber'
 
 interface FloatText {
   id: number
@@ -12,12 +14,16 @@ interface FloatText {
 
 let floatIdCounter = 0
 
+const COMBO_WINDOW_MS = 800
+const COMBO_CAP = 20
+
 interface Props {
   onPrestigeClick: () => void
 }
 
 export function ClickArea({ onPrestigeClick }: Props) {
   const click = useGameStore(s => s.click)
+  const recordCombo = useGameStore(s => s.recordCombo)
   const bitsPerClick = useGameStore(s => s.bitsPerClick)
   const bitsPerSecond = useGameStore(s => s.bitsPerSecond)
   const totalBitsEarned = useGameStore(s => s.totalBitsEarned)
@@ -32,10 +38,26 @@ export function ClickArea({ onPrestigeClick }: Props) {
 
   const [floats, setFloats] = useState<FloatText[]>([])
   const [isFlashing, setIsFlashing] = useState(false)
+  const [combo, setCombo] = useState(0)
   const btnRef = useRef<HTMLButtonElement>(null)
+  const lastClickRef = useRef(0)
+  const comboResetRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const displayBps = useTweenedNumber(bitsPerSecond)
 
   const handleClick = useCallback((e: React.MouseEvent) => {
-    const earned = click()
+    const clickNow = Date.now()
+    const withinWindow = clickNow - lastClickRef.current < COMBO_WINDOW_MS
+    const newCombo = withinWindow ? Math.min(COMBO_CAP, combo + 1) : 1
+    lastClickRef.current = clickNow
+    setCombo(newCombo)
+    recordCombo(newCombo)
+    if (comboResetRef.current) clearTimeout(comboResetRef.current)
+    comboResetRef.current = setTimeout(() => setCombo(0), COMBO_WINDOW_MS)
+
+    const comboMultiplier = 1 + Math.min(1, (newCombo - 1) / (COMBO_CAP - 1))
+    const earned = click(comboMultiplier)
+    playSound('click')
+    if (newCombo > 0 && newCombo % 5 === 0) playSound('combo', newCombo)
     setIsFlashing(true)
     setTimeout(() => setIsFlashing(false), 80)
 
@@ -44,9 +66,13 @@ export function ClickArea({ onPrestigeClick }: Props) {
     const y = rect ? rect.top + Math.random() * rect.height * 0.4 + rect.height * 0.2 : e.clientY
 
     const id = floatIdCounter++
-    setFloats(prev => [...prev, { id, x, y, text: `+${formatBits(earned)}` }])
+    const comboSuffix = newCombo >= 3 ? ` ×${(comboMultiplier).toFixed(2)}` : ''
+    setFloats(prev => [...prev, { id, x, y, text: `+${formatBits(earned)}${comboSuffix}` }])
     setTimeout(() => setFloats(prev => prev.filter(f => f.id !== id)), 1000)
-  }, [click])
+  }, [click, combo, recordCombo])
+
+  const comboPct = Math.min(1, (combo - 1) / (COMBO_CAP - 1))
+  const comboHue = 190 - comboPct * 160 // cyan (190) → red (30)
 
   const canPrestige = totalBitsEarned >= PRESTIGE_UNLOCK_BITS
   const hasGhostCredits = ghostCredits > 0
@@ -62,7 +88,7 @@ export function ClickArea({ onPrestigeClick }: Props) {
         </div>
         <div className="card border-slate-800/40 px-4 py-2.5 text-center">
           <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-0.5">per second</div>
-          <div className="font-mono text-sm font-semibold text-cyan-400">{formatRate(bitsPerSecond)}</div>
+          <div className="font-mono text-sm font-semibold text-cyan-400">{formatRate(displayBps)}</div>
         </div>
         {ghostCredits > 0 && (
           <div className="card border-purple-900/30 px-4 py-2.5 text-center col-span-2">
@@ -106,6 +132,24 @@ export function ClickArea({ onPrestigeClick }: Props) {
           </div>
         </button>
       </div>
+
+      {/* Combo meter */}
+      {combo >= 2 && (
+        <div className="w-full -mt-4 flex flex-col items-center gap-1">
+          <div
+            className="font-mono text-xs font-semibold tracking-widest"
+            style={{ color: `hsl(${comboHue}, 90%, 60%)`, textShadow: `0 0 8px hsl(${comboHue}, 90%, 50%)` }}
+          >
+            COMBO ×{combo}
+          </div>
+          <div className="w-32 h-1 bg-slate-800/60 rounded-full overflow-hidden">
+            <div
+              className="h-full transition-all duration-100"
+              style={{ width: `${comboPct * 100}%`, background: `hsl(${comboHue}, 90%, 55%)` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Floating texts */}
       {floats.map(f => (

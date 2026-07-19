@@ -16,6 +16,8 @@ import { Leaderboard, type LeaderboardEntry } from './components/Leaderboard'
 import { AccountPanel } from './components/AccountPanel'
 import { OnboardingHint } from './components/OnboardingHint'
 import { EventPopup, type GameEvent, type GameEventType } from './components/EventPopup'
+import { AchievementToastQueue } from './components/AchievementToast'
+import { AchievementsPanel } from './components/AchievementsPanel'
 import { isUpgradeUnlocked } from './game/utils'
 import { UPGRADES } from './game/constants'
 
@@ -133,8 +135,24 @@ export default function App() {
     { id: 'agent' as DesktopTab, label: 'AGENT', icon: '◈' },
   ]
 
+  // Visual tier (0-5): grows with progress within a run and permanently with prestige count —
+  // the world gets visibly more intense the further you push.
+  const visualTier = Math.min(
+    5,
+    Math.floor(Math.log10(Math.max(1, totalBitsEarned)) / 3) + prestigeCount
+  )
+  const tierHue = 190 - visualTier * 28 // cyan → purple/red as tier rises
+  const scanlineOpacity = 0.02 + visualTier * 0.012
+
   return (
     <div className="min-h-dvh bg-[#050508] flex flex-col">
+      {/* Ambient glow that intensifies and shifts hue with progress tier */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 transition-[background] duration-1000"
+        style={{
+          background: `radial-gradient(ellipse at 50% 25%, hsla(${tierHue}, 85%, 55%, ${0.02 + visualTier * 0.018}) 0%, transparent 65%)`,
+        }}
+      />
       <ResourceDisplay />
 
       {/* Desktop Layout */}
@@ -142,8 +160,8 @@ export default function App() {
 
         {/* Left: Gameplay — click area takes full focus */}
         <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto relative">
-          {/* subtle scanline bg */}
-          <div className="scanline pointer-events-none absolute inset-0 opacity-[0.03]" />
+          {/* subtle scanline bg, intensifies with progress tier */}
+          <div className="scanline pointer-events-none absolute inset-0 transition-opacity duration-1000" style={{ opacity: scanlineOpacity }} />
           <ClickArea onPrestigeClick={() => setShowPrestige(true)} />
         </div>
 
@@ -190,6 +208,9 @@ export default function App() {
                 <div className="border-t border-slate-800/50">
                   <Leaderboard onEntriesChange={setLeaderboardEntries} />
                 </div>
+                <div className="border-t border-slate-800/50">
+                  <AchievementsPanel />
+                </div>
               </div>
             )}
           </div>
@@ -206,6 +227,7 @@ export default function App() {
             <div className="space-y-2 p-2">
               <AccountPanel entries={leaderboardEntries} />
               <Leaderboard onEntriesChange={setLeaderboardEntries} />
+              <AchievementsPanel />
             </div>
           )}
         </div>
@@ -241,6 +263,7 @@ export default function App() {
       </div>
 
       <OnboardingHint />
+      <AchievementToastQueue />
       {activeEvent && (
         <EventPopup
           event={activeEvent}

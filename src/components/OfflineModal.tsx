@@ -1,4 +1,4 @@
-import { formatBits, getOfflineCapHours } from '../game/utils'
+import { formatBits, getOfflineCapHours, calcOfflineEfficiency } from '../game/utils'
 import type { OfflineResult } from '../game/save'
 import type { GameState } from '../game/types'
 
@@ -19,6 +19,7 @@ function formatDuration(seconds: number): string {
 export function OfflineModal({ result, state, onClose }: Props) {
   const capHours = getOfflineCapHours(state)
   const wasCapped = result.seconds >= result.cappedAt - 1
+  const efficiencyPct = Math.round(calcOfflineEfficiency(state) * 100)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -43,7 +44,7 @@ export function OfflineModal({ result, state, onClose }: Props) {
             </div>
           )}
           <div className="border-t border-slate-800 pt-2 flex justify-between font-mono text-sm">
-            <span className="text-slate-500">Verdient (50% eff.)</span>
+            <span className="text-slate-500">Verdient ({efficiencyPct}% eff.)</span>
             <span className="neon-cyan font-semibold">+{formatBits(result.earnings)}</span>
           </div>
         </div>
