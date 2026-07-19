@@ -135,6 +135,7 @@ interface GameStore extends GameState {
   setAutoBuyEnabled: (enabled: boolean) => void
   activatePenalty: (multiplier: number, durationMs: number) => void
   applyDilemmaOutcome: (outcome: DilemmaOutcome) => void
+  resetAll: () => void
 }
 
 function computeDerived(state: GameState) {
@@ -323,6 +324,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   loadState: (state: GameState) => {
     set({ ...state, ...computeDerived(state) })
+  },
+
+  resetAll: () => {
+    const s = get()
+    // Wipe all progress but keep the player's identity (name#tag) and sync/id continuity
+    const fresh: GameState = {
+      ...defaultState(),
+      playerId: s.playerId,
+      playerName: s.playerName,
+      playerTag: s.playerTag,
+      syncCode: s.syncCode,
+    }
+    set({
+      ...fresh,
+      ...computeDerived(fresh),
+      // clear transient buffs/debuffs too
+      eventBpsMultiplier: 1,
+      eventClickMultiplier: 1,
+      eventExpiresAt: 0,
+      penaltyMultiplier: 1,
+      penaltyExpiresAt: 0,
+    })
+    get().syncQuest()
   },
 
   updateLastActive: () => {
