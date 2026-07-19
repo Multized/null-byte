@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useGameStore } from '../game/store'
 import { formatBits, formatRate } from '../game/utils'
-import { isMuted, toggleMuted } from '../game/sound'
+import { isSfxMuted, toggleSfx, isMusicOn, toggleMusic } from '../game/sound'
 import { useTweenedNumber } from '../hooks/useTweenedNumber'
 
 export function ResourceDisplay() {
@@ -10,7 +10,8 @@ export function ResourceDisplay() {
   const bitsPerSecond = useGameStore(s => s.bitsPerSecond)
   const ghostCredits = useGameStore(s => s.ghostCredits)
   const prestigeCount = useGameStore(s => s.prestigeCount)
-  const [muted, setMutedState] = useState(isMuted())
+  const [sfxMuted, setSfxMutedState] = useState(isSfxMuted())
+  const [musicOn, setMusicOnState] = useState(isMusicOn())
   const displayBits = useTweenedNumber(bits)
 
   return (
@@ -52,14 +53,23 @@ export function ResourceDisplay() {
           )}
         </div>
 
-        {/* Mute toggle */}
-        <button
-          onClick={() => setMutedState(toggleMuted())}
-          title={muted ? 'Sound an' : 'Sound aus'}
-          className="shrink-0 font-mono text-sm text-slate-600 hover:text-cyan-400 transition-colors px-1"
-        >
-          {muted ? '🔇' : '🔊'}
-        </button>
+        {/* Audio toggles: effects + music */}
+        <div className="shrink-0 flex items-center gap-1">
+          <button
+            onClick={() => setSfxMutedState(toggleSfx())}
+            title={sfxMuted ? 'Effektsounds an' : 'Effektsounds aus'}
+            className={`font-mono text-sm transition-colors px-1 ${sfxMuted ? 'text-slate-700 hover:text-slate-500' : 'text-cyan-400/80 hover:text-cyan-400'}`}
+          >
+            {sfxMuted ? '🔇' : '🔊'}
+          </button>
+          <button
+            onClick={() => setMusicOnState(toggleMusic())}
+            title={musicOn ? 'Musik aus' : 'Musik an'}
+            className={`text-sm transition-opacity px-1 ${musicOn ? 'opacity-100' : 'opacity-30 grayscale hover:opacity-50'}`}
+          >
+            🎵
+          </button>
+        </div>
       </div>
     </header>
   )

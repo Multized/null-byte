@@ -24,6 +24,7 @@ import { StatsPanel } from './components/StatsPanel'
 import { MatrixRain } from './components/MatrixRain'
 import { DilemmaModal } from './components/DilemmaModal'
 import { rollDilemma } from './game/dilemmas'
+import { initAudio } from './game/sound'
 import { isUpgradeUnlocked, formatBits } from './game/utils'
 import { UPGRADES } from './game/constants'
 import { emitToast } from './game/toastBus'
@@ -67,6 +68,9 @@ export default function App() {
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
+
+    // Arm background music to start on the first user gesture (if it was left on)
+    initAudio()
 
     const saved = loadGame()
     if (saved) {
