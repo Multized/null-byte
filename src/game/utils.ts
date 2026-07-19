@@ -1,6 +1,7 @@
 import type { GameState } from './types'
 import { PRODUCERS, UPGRADES, PRESTIGE_UPGRADES, COST_SCALING, DEFAULT_OFFLINE_CAP_HOURS, MILESTONE_THRESHOLDS } from './constants'
 import { calcAchievementMultiplier } from './achievements'
+import { artifactGlobalMultiplier, artifactOfflineBonus } from './quests'
 
 const BIT_UNITS = ['bits', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
 const NUM_SUFFIXES = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc']
@@ -111,6 +112,7 @@ export function calcGlobalMultiplier(state: GameState): number {
     if (times > 0) mult *= Math.pow(prestigeGlobalUpgrade.value, times)
   }
   mult *= calcAchievementMultiplier(state)
+  mult *= artifactGlobalMultiplier(state)
   return mult
 }
 
@@ -163,6 +165,7 @@ export function calcOfflineEfficiency(state: GameState): number {
     const times = state.purchasedPrestigeUpgrades[offlineUpgrade.id] ?? 0
     base += offlineUpgrade.value * times
   }
+  base += artifactOfflineBonus(state)
   return Math.min(1, base)
 }
 

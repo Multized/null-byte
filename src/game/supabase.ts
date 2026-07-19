@@ -14,6 +14,7 @@ export interface LeaderboardEntry {
   total_bits_earned: number
   prestige_count: number
   updated_at: string
+  active_title: string | null
 }
 
 // Check if a name+tag combo is taken by someone else
@@ -65,12 +66,12 @@ export async function submitScore(state: GameState): Promise<void> {
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   const { data, error } = await supabase
     .from('null_byte_leaderboard')
-    .select('player_id, name, name_tag, total_bits_earned, prestige_count, updated_at')
+    .select('player_id, name, name_tag, total_bits_earned, prestige_count, updated_at, active_title:game_state->>activeTitle')
     .order('total_bits_earned', { ascending: false })
     .limit(50)
 
   if (error || !data) return []
-  return data.map((row, i) => ({ ...row, rank: i + 1 }))
+  return data.map((row, i) => ({ ...row, rank: i + 1 } as LeaderboardEntry))
 }
 
 export async function loadFromSyncCode(code: string): Promise<GameState | null> {

@@ -329,6 +329,30 @@ const activityAchievements: AchievementDef[] = [
     icon: '⏱',
     check: s => s.totalPlaytimeSeconds >= 36_000,
   },
+  {
+    id: 'quest_1',
+    name: 'Operativ',
+    description: 'Erste Operation abgeschlossen',
+    flavor: 'Vom Auftrag zur Legende ist es ein langer Weg. Der erste Schritt zählt.',
+    icon: '✦',
+    check: s => s.completedQuests.length >= 1,
+  },
+  {
+    id: 'quest_3',
+    name: 'Feldagent',
+    description: '3 Operationen abgeschlossen',
+    flavor: 'Man kennt deinen Codenamen in Kreisen, die es offiziell nicht gibt.',
+    icon: '✦',
+    check: s => s.completedQuests.length >= 3,
+  },
+  {
+    id: 'artifact_collector',
+    name: 'Sammler',
+    description: '3 Artefakte erhalten',
+    flavor: 'Manche Dinge lassen sich nicht kaufen. Nur verdienen.',
+    icon: '◈',
+    check: s => s.earnedArtifacts.length >= 3,
+  },
 ]
 
 export const ACHIEVEMENTS: AchievementDef[] = [

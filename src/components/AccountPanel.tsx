@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useGameStore } from '../game/store'
 import { loadFromSyncCode, submitScore, type LeaderboardEntry } from '../game/supabase'
 import { saveGame } from '../game/save'
+import { titleById, artifactById } from '../game/quests'
 
 interface Props {
   entries: LeaderboardEntry[]
@@ -13,6 +14,10 @@ export function AccountPanel({ entries }: Props) {
   const playerTag = useGameStore(s => s.playerTag)
   const syncCode = useGameStore(s => s.syncCode)
   const loadState = useGameStore(s => s.loadState)
+  const earnedTitles = useGameStore(s => s.earnedTitles)
+  const earnedArtifacts = useGameStore(s => s.earnedArtifacts)
+  const activeTitle = useGameStore(s => s.activeTitle)
+  const setActiveTitle = useGameStore(s => s.setActiveTitle)
 
   const [syncInput, setSyncInput] = useState('')
   const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'error'>('idle')
@@ -51,6 +56,11 @@ export function AccountPanel({ entries }: Props) {
       {/* Identity */}
       <div className="flex items-center justify-between">
         <div className="font-mono text-sm">
+          {activeTitle && titleById(activeTitle) && (
+            <span className="text-amber-400/80 mr-1" title={titleById(activeTitle)!.label}>
+              {titleById(activeTitle)!.icon}
+            </span>
+          )}
           <span className="text-cyan-400">{playerName || '???'}</span>
           <span className="text-purple-400/70">#{playerTag || '????'}</span>
           {myRank && (
@@ -59,6 +69,55 @@ export function AccountPanel({ entries }: Props) {
         </div>
         <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">agent</div>
       </div>
+
+      {/* Titles — earned via story operations, one can be shown on the leaderboard */}
+      {earnedTitles.length > 0 && (
+        <div>
+          <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-1">Titel</div>
+          <div className="flex flex-wrap gap-1.5">
+            {earnedTitles.map(id => {
+              const t = titleById(id)
+              if (!t) return null
+              const active = activeTitle === id
+              return (
+                <button
+                  key={id}
+                  onClick={() => setActiveTitle(active ? null : id)}
+                  className={`font-mono text-[10px] px-2 py-1 rounded border transition-all ${
+                    active
+                      ? 'border-amber-600/60 text-amber-300 bg-amber-950/20'
+                      : 'border-slate-700/50 text-slate-400 hover:border-slate-500'
+                  }`}
+                >
+                  {t.icon} {t.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Artifacts — permanent quest rewards */}
+      {earnedArtifacts.length > 0 && (
+        <div>
+          <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-1">Artefakte</div>
+          <div className="flex flex-wrap gap-1.5">
+            {earnedArtifacts.map(id => {
+              const a = artifactById(id)
+              if (!a) return null
+              return (
+                <span
+                  key={id}
+                  title={`${a.name} — ${a.description}`}
+                  className="font-mono text-[10px] px-2 py-1 rounded border border-purple-800/40 text-purple-300 bg-purple-950/10"
+                >
+                  {a.icon} {a.name}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Sync Code */}
       {syncCode && (

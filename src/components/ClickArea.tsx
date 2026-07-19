@@ -1,10 +1,12 @@
 import { useState, useCallback, useRef } from 'react'
 import { useGameStore } from '../game/store'
 import { formatBits, formatRate, calcGlobalMultiplier, calcGhostCreditsFromBits } from '../game/utils'
+import { artifactComboWindowMs } from '../game/quests'
 import { PRESTIGE_UNLOCK_BITS } from '../game/constants'
 import { playSound } from '../game/sound'
 import { useTweenedNumber } from '../hooks/useTweenedNumber'
 import { ContractsPanel } from './ContractsPanel'
+import { QuestPanel } from './QuestPanel'
 
 interface FloatText {
   id: number
@@ -74,13 +76,14 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     const clickNow = Date.now()
-    const withinWindow = clickNow - lastClickRef.current < COMBO_WINDOW_MS
+    const comboWindow = COMBO_WINDOW_MS + artifactComboWindowMs(useGameStore.getState())
+    const withinWindow = clickNow - lastClickRef.current < comboWindow
     const newCombo = withinWindow ? Math.min(COMBO_CAP, combo + 1) : 1
     lastClickRef.current = clickNow
     setCombo(newCombo)
     recordCombo(newCombo)
     if (comboResetRef.current) clearTimeout(comboResetRef.current)
-    comboResetRef.current = setTimeout(() => setCombo(0), COMBO_WINDOW_MS)
+    comboResetRef.current = setTimeout(() => setCombo(0), comboWindow)
 
     const comboMultiplier = 1 + Math.min(1, (newCombo - 1) / (COMBO_CAP - 1))
     const earned = click(comboMultiplier)
@@ -299,6 +302,9 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
           </button>
         )}
       </div>
+
+      {/* Story operation — the long-term narrative goal */}
+      <QuestPanel />
 
       {/* Rotating contracts — the short-term goal loop */}
       <ContractsPanel />

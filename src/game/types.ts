@@ -80,4 +80,11 @@ export interface GameState {
   activeContracts: ActiveContract[]
   dailyStreak: number
   lastDailyClaim: string
+  activeQuestId: string | null
+  questStepIndex: number
+  questStepBaseline: number
+  completedQuests: string[]
+  earnedTitles: string[]
+  earnedArtifacts: string[]
+  activeTitle: string | null
 }

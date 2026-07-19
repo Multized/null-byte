@@ -81,6 +81,9 @@ export default function App() {
       setShowNameModal(true)
     }
 
+    // Assign the first story operation right away
+    useGameStore.getState().syncQuest()
+
     // Daily streak — auto-claimed once per calendar day, announced via toast
     setTimeout(() => {
       const daily = useGameStore.getState().claimDaily()

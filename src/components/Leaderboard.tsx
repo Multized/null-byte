@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchLeaderboard, submitScore, type LeaderboardEntry } from '../game/supabase'
 import { useGameStore } from '../game/store'
 import { formatBits } from '../game/utils'
+import { titleById } from '../game/quests'
 
 export { type LeaderboardEntry }
 
@@ -72,6 +73,10 @@ export function Leaderboard({ onEntriesChange }: Props) {
                 </div>
 
                 <div className="font-mono text-sm flex-1 truncate">
+                  {(() => {
+                    const t = entry.active_title ? titleById(entry.active_title) : undefined
+                    return t ? <span className="text-amber-400/80 mr-1" title={t.label}>{t.icon}</span> : null
+                  })()}
                   <span className={isMe ? 'text-cyan-400' : 'text-slate-300'}>{entry.name}</span>
                   <span className="text-purple-400/60">#{entry.name_tag}</span>
                   {isMe && <span className="text-[10px] text-slate-600 ml-1">(du)</span>}

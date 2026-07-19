@@ -13,6 +13,7 @@ import {
 import { UPGRADES, PRESTIGE_UPGRADES, PRESTIGE_UNLOCK_BITS, MILESTONE_THRESHOLDS, PRODUCERS } from './constants'
 import { findNewlyUnlocked } from './achievements'
 import { rollContract, isContractComplete } from './contracts'
+import { nextAvailableQuest, questById, isStepComplete, artifactContractSlots } from './quests'
 import { emitToast } from './toastBus'
 
 function todayString(): string {
@@ -79,6 +80,13 @@ function defaultState(): GameState {
     activeContracts: [],
     dailyStreak: 0,
     lastDailyClaim: '',
+    activeQuestId: null,
+    questStepIndex: 0,
+    questStepBaseline: 0,
+    completedQuests: [],
+    earnedTitles: [],
+    earnedArtifacts: [],
+    activeTitle: null,
   }
 }
 
@@ -112,6 +120,9 @@ interface GameStore extends GameState {
   ensureContracts: () => void
   claimContract: (id: string) => ActiveContract | null
   claimDaily: () => { streak: number; reward: number } | null
+  syncQuest: () => void
+  claimQuest: () => { questId: string; title?: string; artifact?: string } | null
+  setActiveTitle: (id: string | null) => void
 }
 
 function computeDerived(state: GameState) {
@@ -320,7 +331,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   ensureContracts: () => {
     let state = get()
-    while (state.activeContracts.length < 3) {
+    const slots = 3 + artifactContractSlots(state)
+    while (state.activeContracts.length < slots) {
       const contract = rollContract(state)
       set(s => ({ activeContracts: [...s.activeContracts, contract] }))
       state = get()
@@ -366,7 +378,83 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return { streak, reward }
   },
 
+  syncQuest: () => {
+    let state = get()
+
+    // Assign a quest if none is active
+    if (!state.activeQuestId) {
+      const quest = nextAvailableQuest(state)
+      if (!quest) return
+      const firstStep = quest.steps[0]
+      set({
+        activeQuestId: quest.id,
+        questStepIndex: 0,
+        questStepBaseline: firstStep.metric(state),
+      })
+      state = get()
+    }
+
+    // Auto-advance through completed intermediate steps (the final step waits for a manual claim)
+    const quest = questById(state.activeQuestId!)
+    if (!quest) return
+    while (state.questStepIndex < quest.steps.length - 1) {
+      const step = quest.steps[state.questStepIndex]
+      if (!isStepComplete(step, state.questStepBaseline, state)) break
+      const nextIndex = state.questStepIndex + 1
+      const nextStep = quest.steps[nextIndex]
+      set({
+        questStepIndex: nextIndex,
+        questStepBaseline: nextStep.metric(state),
+      })
+      state = get()
+    }
+  },
+
+  claimQuest: () => {
+    const state = get()
+    if (!state.activeQuestId) return null
+    const quest = questById(state.activeQuestId)
+    if (!quest) return null
+    // Only claimable on the final step and once it's complete
+    const onFinalStep = state.questStepIndex === quest.steps.length - 1
+    const finalStep = quest.steps[quest.steps.length - 1]
+    if (!onFinalStep || !isStepComplete(finalStep, state.questStepBaseline, state)) return null
+
+    const reward = Math.max(100, Math.ceil(calcBitsPerSecond(state) * quest.rewardBitsSeconds))
+    set(s => {
+      const earnedTitles = quest.rewardTitle && !s.earnedTitles.includes(quest.rewardTitle)
+        ? [...s.earnedTitles, quest.rewardTitle]
+        : s.earnedTitles
+      const earnedArtifacts = quest.rewardArtifact && !s.earnedArtifacts.includes(quest.rewardArtifact)
+        ? [...s.earnedArtifacts, quest.rewardArtifact]
+        : s.earnedArtifacts
+      const next: Partial<GameState> = {
+        bits: s.bits + reward,
+        totalBitsEarned: s.totalBitsEarned + reward,
+        ghostCredits: s.ghostCredits + quest.rewardGc,
+        totalGhostCreditsEarned: s.totalGhostCreditsEarned + quest.rewardGc,
+        completedQuests: [...s.completedQuests, quest.id],
+        earnedTitles,
+        earnedArtifacts,
+        // Auto-equip the first title the player ever earns
+        activeTitle: quest.rewardTitle && !s.activeTitle ? quest.rewardTitle : s.activeTitle,
+        activeQuestId: null,
+        questStepIndex: 0,
+        questStepBaseline: 0,
+      }
+      return { ...next, ...computeDerived({ ...s, ...next }) }
+    })
+    get().syncQuest()
+    get().checkAchievements()
+    return { questId: quest.id, title: quest.rewardTitle, artifact: quest.rewardArtifact }
+  },
+
+  setActiveTitle: (id: string | null) => {
+    set(s => (id === null || s.earnedTitles.includes(id) ? { activeTitle: id } : {}))
+  },
+
   checkAchievements: () => {
+    get().syncQuest()
     const state = get()
     const newly = findNewlyUnlocked(state)
     if (newly.length === 0) return []
@@ -408,6 +496,13 @@ export function getSerializableState(): GameState {
     activeContracts: s.activeContracts,
     dailyStreak: s.dailyStreak,
     lastDailyClaim: s.lastDailyClaim,
+    activeQuestId: s.activeQuestId,
+    questStepIndex: s.questStepIndex,
+    questStepBaseline: s.questStepBaseline,
+    completedQuests: s.completedQuests,
+    earnedTitles: s.earnedTitles,
+    earnedArtifacts: s.earnedArtifacts,
+    activeTitle: s.activeTitle,
   }
 }
 

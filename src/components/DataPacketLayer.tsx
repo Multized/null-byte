@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useGameStore } from '../game/store'
 import { formatBits } from '../game/utils'
+import { artifactPacketLifetimeMs } from '../game/quests'
 import { playSound } from '../game/sound'
 
 interface Packet {
@@ -9,6 +10,7 @@ interface Packet {
   fromY: number
   toX: number
   toY: number
+  lifetime: number
 }
 
 interface FloatReward {
@@ -42,12 +44,14 @@ export function DataPacketLayer() {
     clearTimer()
     timerRef.current = setTimeout(() => {
       const goingRight = Math.random() < 0.5
+      const lifetime = LIFETIME_MS + artifactPacketLifetimeMs(useGameStore.getState())
       setPacket({
         id: ++packetIdCounter,
         fromX: goingRight ? 5 : 80,
         fromY: 15 + Math.random() * 55,
         toX: goingRight ? 80 : 5,
         toY: 15 + Math.random() * 55,
+        lifetime,
       })
       setInFlight(false)
       // double rAF so the browser paints the start position before the transition kicks in
@@ -55,7 +59,7 @@ export function DataPacketLayer() {
       timerRef.current = setTimeout(() => {
         setPacket(null)
         scheduleSpawn(false)
-      }, LIFETIME_MS)
+      }, lifetime)
     }, spawnDelayMs(first))
   }, [])
 
@@ -115,7 +119,7 @@ export function DataPacketLayer() {
           style={{
             left: `${inFlight ? packet.toX : packet.fromX}%`,
             top: `${inFlight ? packet.toY : packet.fromY}%`,
-            transition: `left ${LIFETIME_MS}ms linear, top ${LIFETIME_MS}ms linear`,
+            transition: `left ${packet.lifetime}ms linear, top ${packet.lifetime}ms linear`,
           }}
         >
           <span

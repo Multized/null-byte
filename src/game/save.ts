@@ -46,6 +46,13 @@ export function loadGame(): GameState | null {
       activeContracts: data.activeContracts ?? [],
       dailyStreak: data.dailyStreak ?? 0,
       lastDailyClaim: data.lastDailyClaim ?? '',
+      activeQuestId: data.activeQuestId ?? null,
+      questStepIndex: data.questStepIndex ?? 0,
+      questStepBaseline: data.questStepBaseline ?? 0,
+      completedQuests: data.completedQuests ?? [],
+      earnedTitles: data.earnedTitles ?? [],
+      earnedArtifacts: data.earnedArtifacts ?? [],
+      activeTitle: data.activeTitle ?? null,
     }
   } catch (e) {
     console.error('Load failed:', e)
