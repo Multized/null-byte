@@ -96,6 +96,18 @@
     );
     pointer-events: none;
   }
+
+  .corner-bracket {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-color: rgba(0, 245, 255, 0.3);
+    pointer-events: none;
+  }
+  .corner-bracket.tl { top: 0; left: 0; border-top: 2px solid; border-left: 2px solid; border-top-left-radius: 4px; }
+  .corner-bracket.tr { top: 0; right: 0; border-top: 2px solid; border-right: 2px solid; border-top-right-radius: 4px; }
+  .corner-bracket.bl { bottom: 0; left: 0; border-bottom: 2px solid; border-left: 2px solid; border-bottom-left-radius: 4px; }
+  .corner-bracket.br { bottom: 0; right: 0; border-bottom: 2px solid; border-right: 2px solid; border-bottom-right-radius: 4px; }
 }
 
 @keyframes float-up {
@@ -141,6 +153,25 @@
   0% { transform: scale(1); }
   35% { transform: scale(1.035); }
   100% { transform: scale(1); }
+}
+
+@keyframes combo-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes status-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.combo-pop {
+  animation: combo-pop 0.2s ease-out;
+}
+
+.status-in {
+  animation: status-in 0.2s ease-out;
 }
 
 .impact-pulse {

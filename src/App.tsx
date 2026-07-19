@@ -161,7 +161,7 @@ export default function App() {
       <div className="hidden md:flex flex-1 min-h-0 overflow-hidden">
 
         {/* Left: Gameplay — click area takes full focus */}
-        <div className="flex-1 min-h-0 flex flex-col items-center justify-center overflow-y-auto relative">
+        <div className="flex-1 min-h-0 flex flex-col items-center overflow-y-auto relative">
           {/* subtle scanline bg, intensifies with progress tier */}
           <div className="scanline pointer-events-none absolute inset-0 transition-opacity duration-1000" style={{ opacity: scanlineOpacity }} />
           <ClickArea onPrestigeClick={() => setShowPrestige(true)} onGhostShopClick={() => setShowGhostShop(true)} />

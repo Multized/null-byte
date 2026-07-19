@@ -22,6 +22,19 @@ interface Props {
   onGhostShopClick: () => void
 }
 
+function StatSlot({ icon, label, value, accent = 'cyan' }: { icon: string; label: string; value: string; accent?: 'cyan' | 'purple' }) {
+  return (
+    <div className="flex flex-col items-center gap-0.5 px-3 py-1 min-w-0">
+      <div className="flex items-center gap-1 font-mono text-[9px] text-slate-600 uppercase tracking-widest whitespace-nowrap">
+        <span>{icon}</span><span>{label}</span>
+      </div>
+      <div className={`font-mono text-sm font-semibold whitespace-nowrap ${accent === 'purple' ? 'neon-purple' : 'text-cyan-400'}`}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
 export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
   const click = useGameStore(s => s.click)
   const recordCombo = useGameStore(s => s.recordCombo)
@@ -76,47 +89,52 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
 
   const comboPct = Math.min(1, (combo - 1) / (COMBO_CAP - 1))
   const comboHue = 190 - comboPct * 160 // cyan (190) → red (30)
+  const comboActive = combo >= 2
 
   const canPrestige = totalBitsEarned >= PRESTIGE_UNLOCK_BITS
   const hasGhostCredits = ghostCredits > 0
+  const showGhostShopEntry = hasGhostCredits || prestigeCount > 0
   const prestigeProgress = Math.min(1, totalBitsEarned / PRESTIGE_UNLOCK_BITS)
   const willEarnGc = canPrestige ? calcGhostCreditsFromBits(totalBitsEarned, state) : 0
   const showPrestigeTeaser = !canPrestige && prestigeCount === 0 && prestigeProgress > 0.02
 
   return (
-    <div className="flex flex-col items-center gap-8 py-8 w-full max-w-md px-6">
+    <div className="flex flex-col items-center w-full max-w-md px-6 pt-6 md:pt-10 pb-8 gap-7">
 
-      {/* Stats row */}
-      <div className="w-full grid grid-cols-2 gap-2">
-        <div className="card border-slate-800/40 px-4 py-2.5 text-center">
-          <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-0.5">per click</div>
-          <div className="font-mono text-sm font-semibold text-cyan-400">{formatBits(bitsPerClick)}</div>
+      {/* HUD stat strip */}
+      <div className="relative w-full">
+        <span className="corner-bracket tl" /><span className="corner-bracket tr" />
+        <span className="corner-bracket bl" /><span className="corner-bracket br" />
+        <div className="flex items-center justify-center divide-x divide-slate-800/60 border border-slate-800/40 rounded-md bg-[#08080f]/60 py-1">
+          <StatSlot icon="⌨" label="click" value={formatBits(bitsPerClick)} />
+          <StatSlot icon="⚡" label="rate" value={formatRate(displayBps)} />
+          {permanentMult >= 1.01 && (
+            <StatSlot icon="◆" label="bonus" value={`×${permanentMult.toFixed(2)}`} accent="purple" />
+          )}
+          {hasGhostCredits && (
+            <StatSlot icon="👻" label="ghost" value={String(Math.floor(ghostCredits))} accent="purple" />
+          )}
         </div>
-        <div className="card border-slate-800/40 px-4 py-2.5 text-center">
-          <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-0.5">per second</div>
-          <div className="font-mono text-sm font-semibold text-cyan-400">{formatRate(displayBps)}</div>
-        </div>
-        {permanentMult > 1.001 && (
-          <div className="card border-purple-900/30 px-4 py-2.5 text-center" title="Permanenter Bonus aus Ghost-Shop-Käufen &amp; Achievements">
-            <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-0.5">permanent-bonus</div>
-            <div className="font-mono text-sm font-semibold neon-purple">×{permanentMult.toFixed(2)}</div>
-          </div>
-        )}
-        {ghostCredits > 0 && (
-          <div className={`card border-purple-900/30 px-4 py-2.5 text-center ${permanentMult > 1.001 ? '' : 'col-span-2'}`}>
-            <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-0.5">ghost credits</div>
-            <div className="font-mono text-sm font-semibold neon-purple">{Math.floor(ghostCredits)}</div>
-          </div>
-        )}
       </div>
 
-      {/* Main click button */}
-      <div className="relative flex items-center justify-center">
+      {/* Hero click button, combo ring + badge integrated (no separate layout block) */}
+      <div className="relative flex items-center justify-center shrink-0">
+        {/* Combo progress ring, sits just outside the button, only visible mid-combo */}
+        <div
+          className="absolute -inset-2.5 rounded-full pointer-events-none transition-opacity duration-200"
+          style={{
+            opacity: comboActive ? 1 : 0,
+            background: `conic-gradient(hsl(${comboHue} 90% 55%) ${comboPct * 360}deg, transparent ${comboPct * 360}deg)`,
+            WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))',
+            mask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))',
+          }}
+        />
+
         <button
           ref={btnRef}
           onClick={handleClick}
           className={`
-            click-btn relative w-52 h-52 md:w-64 md:h-64 rounded-full
+            click-btn relative w-56 h-56 md:w-72 md:h-72 rounded-full
             border-2 border-cyan-500/50
             bg-[#050a14]
             flex flex-col items-center justify-center gap-3
@@ -143,25 +161,23 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
             <span className="cursor-blink">_</span>
           </div>
         </button>
-      </div>
 
-      {/* Combo meter */}
-      {combo >= 2 && (
-        <div className="w-full -mt-4 flex flex-col items-center gap-1">
+        {/* Combo badge */}
+        {comboActive && (
           <div
-            className="font-mono text-xs font-semibold tracking-widest"
-            style={{ color: `hsl(${comboHue}, 90%, 60%)`, textShadow: `0 0 8px hsl(${comboHue}, 90%, 50%)` }}
+            key={combo}
+            className="combo-pop absolute -top-1.5 -right-1.5 z-10 px-2 py-1 rounded-full font-mono text-[11px] font-bold border"
+            style={{
+              background: `hsl(${comboHue} 60% 14%)`,
+              color: `hsl(${comboHue} 90% 68%)`,
+              borderColor: `hsl(${comboHue} 90% 40%)`,
+              boxShadow: `0 0 12px hsl(${comboHue} 90% 45% / 0.5)`,
+            }}
           >
-            COMBO ×{combo}
+            ×{combo}
           </div>
-          <div className="w-32 h-1 bg-slate-800/60 rounded-full overflow-hidden">
-            <div
-              className="h-full transition-all duration-100"
-              style={{ width: `${comboPct * 100}%`, background: `hsl(${comboHue}, 90%, 55%)` }}
-            />
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Floating texts */}
       {floats.map(f => (
@@ -174,60 +190,64 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
         </div>
       ))}
 
-      {/* Active event indicator */}
-      {eventActive && (
-        <div className="w-full flex items-center justify-between px-3 py-2 rounded border border-green-700/40 bg-green-900/10 font-mono text-xs">
-          <span className="text-green-400">
-            {eventBpsMultiplier > 1 ? `⚡ ${eventBpsMultiplier}× BPS aktiv` : `⚡ ${eventClickMultiplier}× Click aktiv`}
-          </span>
-          <span className="text-green-600">{eventSecondsLeft}s</span>
-        </div>
-      )}
-
-      {/* Prestige teaser — builds anticipation before first prestige is even reachable */}
-      {showPrestigeTeaser && (
-        <div className="w-full">
-          <div className="flex items-center justify-between font-mono text-[10px] text-slate-600 mb-1">
-            <span>Fortschritt bis Prestige</span>
-            <span>{Math.floor(prestigeProgress * 100)}%</span>
+      {/* Reserved single-line status zone: event takes priority over the prestige teaser */}
+      <div className="w-full min-h-[38px] flex items-center">
+        {eventActive ? (
+          <div key="event" className="status-in w-full flex items-center justify-between px-3 py-2 rounded border border-green-700/40 bg-green-900/10 font-mono text-xs">
+            <span className="text-green-400">
+              {eventBpsMultiplier > 1 ? `⚡ ${eventBpsMultiplier}× BPS aktiv` : `⚡ ${eventClickMultiplier}× Click aktiv`}
+            </span>
+            <span className="text-green-600">{eventSecondsLeft}s</span>
           </div>
-          <div className="w-full h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-purple-600/50 transition-all duration-500"
-              style={{ width: `${prestigeProgress * 100}%` }}
-            />
+        ) : showPrestigeTeaser ? (
+          <div key="teaser" className="status-in w-full">
+            <div className="flex items-center justify-between font-mono text-[10px] text-slate-600 mb-1">
+              <span>Fortschritt bis Prestige</span>
+              <span>{Math.floor(prestigeProgress * 100)}%</span>
+            </div>
+            <div className="w-full h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-purple-600/50 transition-all duration-500"
+                style={{ width: `${prestigeProgress * 100}%` }}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        ) : null}
+      </div>
 
-      {/* Prestige CTA — clearly distinct from the Ghost Shop entry below */}
-      {canPrestige && (
-        <button
-          onClick={onPrestigeClick}
-          className="
-            w-full font-mono text-xs px-4 py-3 rounded
-            border border-purple-500/60 text-purple-200 bg-purple-900/20
-            hover:bg-purple-900/35 hover:border-purple-400 transition-all duration-150
-            animate-pulse font-semibold tracking-wide
-          "
-        >
-          ⬆ PRESTIGE VERFÜGBAR — +{willEarnGc} Ghost Credits
-        </button>
-      )}
+      {/* Action dock — fixed slot, never shifts the button above it */}
+      <div className="w-full flex flex-col gap-2 min-h-[52px]">
+        {canPrestige && (
+          <button
+            onClick={onPrestigeClick}
+            className="
+              w-full flex items-center gap-3 font-mono text-xs px-4 py-3 rounded-lg
+              border border-purple-500/60 text-purple-200 bg-purple-900/20
+              hover:bg-purple-900/35 hover:border-purple-400 transition-all duration-150
+              animate-pulse
+            "
+          >
+            <span className="text-lg leading-none">⬆</span>
+            <span className="flex-1 text-left font-semibold tracking-wide">PRESTIGE VERFÜGBAR</span>
+            <span className="neon-purple font-semibold">+{willEarnGc} gc</span>
+          </button>
+        )}
 
-      {/* Ghost Shop entry — always available once you have anything to show for it, never resets anything */}
-      {(hasGhostCredits || prestigeCount > 0) && (
-        <button
-          onClick={onGhostShopClick}
-          className="
-            w-full font-mono text-xs px-4 py-2.5 rounded
-            border border-indigo-800/40 text-indigo-300/80 bg-indigo-950/10
-            hover:bg-indigo-950/20 hover:border-indigo-600/50 transition-all duration-150
-          "
-        >
-          👻 Ghost Shop{hasGhostCredits ? ` — ${Math.floor(ghostCredits)} gc verfügbar` : ''}
-        </button>
-      )}
+        {showGhostShopEntry && (
+          <button
+            onClick={onGhostShopClick}
+            className="
+              w-full flex items-center gap-3 font-mono text-xs px-4 py-2.5 rounded-lg
+              border border-indigo-800/40 text-indigo-300/80 bg-indigo-950/10
+              hover:bg-indigo-950/20 hover:border-indigo-600/50 transition-all duration-150
+            "
+          >
+            <span className="text-base leading-none">👻</span>
+            <span className="flex-1 text-left">Ghost Shop</span>
+            {hasGhostCredits && <span className="text-indigo-300">{Math.floor(ghostCredits)} gc</span>}
+          </button>
+        )}
+      </div>
     </div>
   )
 }

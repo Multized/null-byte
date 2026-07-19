@@ -28,7 +28,7 @@ export function PrestigeModal({ onClose, onOpenGhostShop }: Props) {
   const nextClickMult = calcClickMultiplier(projected)
   const nextStartBits = getStartBits(projected)
 
-  const hasCarryOverBonus = nextGlobalMult > 1.001 || nextClickMult > 1.001 || nextStartBits > 0
+  const hasCarryOverBonus = nextGlobalMult > 1.01 || nextClickMult > 1.01 || nextStartBits > 0
 
   const handlePrestige = () => {
     prestige()
@@ -97,8 +97,8 @@ export function PrestigeModal({ onClose, onOpenGhostShop }: Props) {
               Dein nächster Run startet mit
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-slate-300">
-              {nextGlobalMult > 1.001 && <span>Globaler Bonus <span className="text-cyan-400">×{nextGlobalMult.toFixed(2)}</span></span>}
-              {nextClickMult > 1.001 && <span>Klick-Bonus <span className="text-cyan-400">×{nextClickMult.toFixed(2)}</span></span>}
+              {nextGlobalMult > 1.01 && <span>Globaler Bonus <span className="text-cyan-400">×{nextGlobalMult.toFixed(2)}</span></span>}
+              {nextClickMult > 1.01 && <span>Klick-Bonus <span className="text-cyan-400">×{nextClickMult.toFixed(2)}</span></span>}
               {nextStartBits > 0 && <span>Start-Bits <span className="text-cyan-400">{formatBits(nextStartBits)}</span></span>}
             </div>
           </div>
