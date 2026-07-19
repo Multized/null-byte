@@ -14,6 +14,7 @@ import { UPGRADES, PRESTIGE_UPGRADES, PRESTIGE_UNLOCK_BITS, MILESTONE_THRESHOLDS
 import { findNewlyUnlocked } from './achievements'
 import { rollContract, isContractComplete } from './contracts'
 import { nextAvailableQuest, questById, isStepComplete, artifactContractSlots } from './quests'
+import type { DilemmaOutcome } from './dilemmas'
 import { emitToast } from './toastBus'
 
 function todayString(): string {
@@ -88,6 +89,8 @@ function defaultState(): GameState {
     earnedArtifacts: [],
     activeTitle: null,
     autoBuyEnabled: true,
+    decisionsMade: 0,
+    gamblesWon: 0,
   }
 }
 
@@ -100,6 +103,10 @@ interface GameStore extends GameState {
   eventBpsMultiplier: number
   eventClickMultiplier: number
   eventExpiresAt: number
+
+  // Dilemma penalty debuff (not persisted)
+  penaltyMultiplier: number
+  penaltyExpiresAt: number
 
   // Actions
   click: (comboMultiplier?: number) => number
@@ -125,6 +132,8 @@ interface GameStore extends GameState {
   claimQuest: () => { questId: string; title?: string; artifact?: string } | null
   setActiveTitle: (id: string | null) => void
   setAutoBuyEnabled: (enabled: boolean) => void
+  activatePenalty: (multiplier: number, durationMs: number) => void
+  applyDilemmaOutcome: (outcome: DilemmaOutcome) => void
 }
 
 function computeDerived(state: GameState) {
@@ -141,6 +150,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   eventBpsMultiplier: 1,
   eventClickMultiplier: 1,
   eventExpiresAt: 0,
+  penaltyMultiplier: 1,
+  penaltyExpiresAt: 0,
 
   click: (comboMultiplier = 1) => {
     const state = get()
@@ -166,8 +177,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state.eventExpiresAt > 0 && now >= state.eventExpiresAt) {
       set({ eventBpsMultiplier: 1, eventClickMultiplier: 1, eventExpiresAt: 0 })
     }
+    // Expire dilemma penalty
+    if (state.penaltyExpiresAt > 0 && now >= state.penaltyExpiresAt) {
+      set({ penaltyMultiplier: 1, penaltyExpiresAt: 0 })
+    }
     const bpsMult = now < state.eventExpiresAt ? state.eventBpsMultiplier : 1
-    const bps = calcBitsPerSecond(state) * bpsMult
+    const penaltyMult = now < state.penaltyExpiresAt ? state.penaltyMultiplier : 1
+    const bps = calcBitsPerSecond(state) * bpsMult * penaltyMult
     const earned = bps * delta
     set(s => {
       const next: Partial<GameState> = {
@@ -459,6 +475,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ autoBuyEnabled: enabled })
   },
 
+  activatePenalty: (multiplier: number, durationMs: number) => {
+    set({ penaltyMultiplier: multiplier, penaltyExpiresAt: Date.now() + durationMs })
+  },
+
+  applyDilemmaOutcome: (outcome: DilemmaOutcome) => {
+    if (outcome.bits) get().addInstantBits(outcome.bits)
+    if (outcome.ghostCredits) {
+      set(s => ({
+        ghostCredits: Math.max(0, s.ghostCredits + outcome.ghostCredits!),
+        totalGhostCreditsEarned: s.totalGhostCreditsEarned + Math.max(0, outcome.ghostCredits!),
+      }))
+    }
+    if (outcome.bpsBuff) get().activateEventBps(outcome.bpsBuff.mult, outcome.bpsBuff.durationMs)
+    if (outcome.clickBuff) get().activateEventClick(outcome.clickBuff.mult, outcome.clickBuff.durationMs)
+    if (outcome.penalty) get().activatePenalty(outcome.penalty.mult, outcome.penalty.durationMs)
+    set(s => ({
+      decisionsMade: s.decisionsMade + 1,
+      gamblesWon: outcome.won === true ? s.gamblesWon + 1 : s.gamblesWon,
+    }))
+    get().checkAchievements()
+  },
+
   checkAchievements: () => {
     get().syncQuest()
     const state = get()
@@ -510,6 +548,8 @@ export function getSerializableState(): GameState {
     earnedArtifacts: s.earnedArtifacts,
     activeTitle: s.activeTitle,
     autoBuyEnabled: s.autoBuyEnabled,
+    decisionsMade: s.decisionsMade,
+    gamblesWon: s.gamblesWon,
   }
 }
 

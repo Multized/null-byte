@@ -353,6 +353,30 @@ const activityAchievements: AchievementDef[] = [
     icon: '◈',
     check: s => s.earnedArtifacts.length >= 3,
   },
+  {
+    id: 'decision_1',
+    name: 'Der erste Deal',
+    description: 'Erste Entscheidung getroffen',
+    flavor: 'Willkommen im Graubereich. Hier gibt es keine Rücknahme.',
+    icon: '📡',
+    check: s => s.decisionsMade >= 1,
+  },
+  {
+    id: 'decision_25',
+    name: 'Verhandlungssache',
+    description: '25 Entscheidungen getroffen',
+    flavor: 'Du liest zwischen den Zeilen einer verschlüsselten Nachricht wie andere die Zeitung.',
+    icon: '📡',
+    check: s => s.decisionsMade >= 25,
+  },
+  {
+    id: 'gamble_10',
+    name: 'Haus gewinnt nicht immer',
+    description: '10 Wetten gewonnen',
+    flavor: 'Glück ist eine Fähigkeit, wenn man oft genug würfelt.',
+    icon: '🎲',
+    check: s => s.gamblesWon >= 10,
+  },
 ]
 
 export const ACHIEVEMENTS: AchievementDef[] = [

@@ -88,4 +88,6 @@ export interface GameState {
   earnedArtifacts: string[]
   activeTitle: string | null
   autoBuyEnabled: boolean
+  decisionsMade: number
+  gamblesWon: number
 }

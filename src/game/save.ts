@@ -54,6 +54,8 @@ export function loadGame(): GameState | null {
       earnedArtifacts: data.earnedArtifacts ?? [],
       activeTitle: data.activeTitle ?? null,
       autoBuyEnabled: data.autoBuyEnabled ?? true,
+      decisionsMade: data.decisionsMade ?? 0,
+      gamblesWon: data.gamblesWon ?? 0,
     }
   } catch (e) {
     console.error('Load failed:', e)

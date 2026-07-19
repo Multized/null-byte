@@ -22,6 +22,8 @@ import { AchievementsPanel } from './components/AchievementsPanel'
 import { DataPacketLayer } from './components/DataPacketLayer'
 import { StatsPanel } from './components/StatsPanel'
 import { MatrixRain } from './components/MatrixRain'
+import { DilemmaModal } from './components/DilemmaModal'
+import { rollDilemma } from './game/dilemmas'
 import { isUpgradeUnlocked, formatBits } from './game/utils'
 import { UPGRADES } from './game/constants'
 import { emitToast } from './game/toastBus'
@@ -49,7 +51,11 @@ export default function App() {
   const [offlineResult, setOfflineResult] = useState<{ result: OfflineResult; state: GameState } | null>(null)
   const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([])
   const [activeEvent, setActiveEvent] = useState<GameEvent | null>(null)
+  const [pendingDilemma, setPendingDilemma] = useState<{ id: string; dilemmaId: string } | null>(null)
+  const [dilemmaOpen, setDilemmaOpen] = useState(false)
   const eventIdRef = useRef(0)
+  const dilemmaIdRef = useRef(0)
+  const lastDilemmaRef = useRef<string | undefined>(undefined)
   const initialized = useRef(false)
 
   // Available upgrade count for badge
@@ -136,6 +142,36 @@ export default function App() {
     const t = scheduleNext()
     return () => clearTimeout(t)
   }, [])
+
+  // Decision dilemmas — anonymous contacts with risk/reward choices, every ~8–12 min
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
+    const scheduleNext = (first: boolean) => {
+      const fast = localStorage.getItem('nullbyte_fast_dilemmas') === '1'
+      const delay = fast ? 4_000 : (first ? 90 + Math.random() * 120 : 480 + Math.random() * 240) * 1000
+      timer = setTimeout(() => {
+        const cur = useGameStore.getState()
+        // Don't stack on top of an active event or an already-pending dilemma
+        if (!activeEvent && !pendingDilemma) {
+          const rolled = rollDilemma(cur, lastDilemmaRef.current)
+          if (rolled) {
+            lastDilemmaRef.current = rolled.id
+            setPendingDilemma({ id: `d${++dilemmaIdRef.current}`, dilemmaId: rolled.id })
+          }
+        }
+        scheduleNext(false)
+      }, delay)
+    }
+    scheduleNext(true)
+    return () => clearTimeout(timer)
+  }, [activeEvent, pendingDilemma])
+
+  // Auto-dismiss an ignored dilemma after 90s (counts as decline, no side effects)
+  useEffect(() => {
+    if (!pendingDilemma || dilemmaOpen) return
+    const t = setTimeout(() => setPendingDilemma(null), 90_000)
+    return () => clearTimeout(t)
+  }, [pendingDilemma, dilemmaOpen])
 
   // Save on tab close
   useEffect(() => {
@@ -304,6 +340,32 @@ export default function App() {
           event={activeEvent}
           onClaim={() => setActiveEvent(null)}
           onExpire={() => setActiveEvent(null)}
+        />
+      )}
+
+      {/* Incoming-transmission indicator — click to open the decision */}
+      {pendingDilemma && !dilemmaOpen && (
+        <button
+          onClick={() => setDilemmaOpen(true)}
+          className="
+            fixed top-16 left-1/2 -translate-x-1/2 z-50 slide-in
+            flex items-center gap-2.5 px-4 py-2.5 rounded
+            border border-purple-600/60 bg-[#0a060d]/95 backdrop-blur-sm
+            shadow-[0_0_28px_rgba(168,85,247,0.14)]
+            font-mono text-xs text-purple-300 hover:bg-purple-950/40 transition-all
+            animate-pulse
+          "
+        >
+          <span className="text-base">📡</span>
+          <span className="tracking-widest">EINGEHENDE ÜBERTRAGUNG</span>
+          <span className="text-purple-500/70">▸ öffnen</span>
+        </button>
+      )}
+      {pendingDilemma && dilemmaOpen && (
+        <DilemmaModal
+          dilemmaId={pendingDilemma.dilemmaId}
+          decideMs={45_000}
+          onClose={() => { setDilemmaOpen(false); setPendingDilemma(null) }}
         />
       )}
       {showPrestige && (

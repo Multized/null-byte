@@ -59,10 +59,14 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
   const eventBpsMultiplier = useGameStore(s => s.eventBpsMultiplier)
   const eventClickMultiplier = useGameStore(s => s.eventClickMultiplier)
   const eventExpiresAt = useGameStore(s => s.eventExpiresAt)
+  const penaltyMultiplier = useGameStore(s => s.penaltyMultiplier)
+  const penaltyExpiresAt = useGameStore(s => s.penaltyExpiresAt)
   const state = useGameStore(s => s)
   const now = Date.now()
   const eventActive = eventExpiresAt > now
   const eventSecondsLeft = eventActive ? Math.ceil((eventExpiresAt - now) / 1000) : 0
+  const penaltyActive = penaltyExpiresAt > now
+  const penaltySecondsLeft = penaltyActive ? Math.ceil((penaltyExpiresAt - now) / 1000) : 0
   const permanentMult = calcGlobalMultiplier(state)
 
   const [floats, setFloats] = useState<FloatText[]>([])
@@ -244,9 +248,16 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
         </span>
       ))}
 
-      {/* Reserved single-line status zone: event takes priority over the prestige teaser */}
+      {/* Reserved single-line status zone: penalty > event > prestige teaser */}
       <div className="w-full min-h-[38px] flex items-center">
-        {eventActive ? (
+        {penaltyActive ? (
+          <div key="penalty" className="status-in w-full flex items-center justify-between px-3 py-2 rounded border border-red-700/40 bg-red-900/10 font-mono text-xs">
+            <span className="text-red-400">
+              ⚠ −{Math.round((1 - penaltyMultiplier) * 100)}% BPS · Sabotage aktiv
+            </span>
+            <span className="text-red-600">{penaltySecondsLeft}s</span>
+          </div>
+        ) : eventActive ? (
           <div key="event" className="status-in w-full flex items-center justify-between px-3 py-2 rounded border border-green-700/40 bg-green-900/10 font-mono text-xs">
             <span className="text-green-400">
               {eventBpsMultiplier > 1 ? `⚡ ${eventBpsMultiplier}× BPS aktiv` : `⚡ ${eventClickMultiplier}× Click aktiv`}

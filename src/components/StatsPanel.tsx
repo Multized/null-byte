@@ -20,6 +20,8 @@ export function StatsPanel() {
     { label: 'Events geclaimt', value: formatNumber(state.totalEventsClaimed) },
     { label: 'Packets gefangen', value: formatNumber(state.packetsCaught) },
     { label: 'Aufträge erledigt', value: formatNumber(state.contractsCompleted) },
+    { label: 'Entscheidungen getroffen', value: formatNumber(state.decisionsMade) },
+    { label: 'Wetten gewonnen', value: formatNumber(state.gamblesWon) },
     { label: 'Producer gekauft', value: formatNumber(state.totalProducersBought) },
     { label: 'Daily Streak', value: state.dailyStreak > 0 ? `${state.dailyStreak} Tage` : '—' },
     { label: 'Prestiges', value: formatNumber(state.prestigeCount), accent: true },
