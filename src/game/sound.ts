@@ -214,22 +214,45 @@ export function playSound(name: SoundName, comboLevel?: number): void {
   }
 }
 
-// ---- Generative ambient music ---------------------------------------------
+// ---- Catchy synthwave track (sequenced) -----------------------------------
 
-// Dark, slow chord progression (A minor feel): Am – F – Cmaj – G, triads mid-octave.
-const PROGRESSION: number[][] = [
-  [220.0, 261.63, 329.63], // Am  (A3 C4 E4)
-  [174.61, 220.0, 261.63], // F   (F3 A3 C4)
-  [261.63, 329.63, 392.0],  // C   (C4 E4 G4)
-  [196.0, 246.94, 293.66],  // G   (G3 B3 D4)
+const BPM = 112
+const SIXTEENTH = 60 / BPM / 4          // seconds per 16th note
+const STEPS_PER_BAR = 16
+const TOTAL_STEPS = STEPS_PER_BAR * 4   // 4-bar loop
+const MUSIC_LEVEL = 0.32                // overall music volume (quieter than the old pads)
+
+function midiToFreq(m: number): number {
+  return 440 * Math.pow(2, (m - 69) / 12)
+}
+
+// [pad triad (MIDI), bass root (MIDI)] per bar — Am · F · C · G
+const BARS: { pad: number[]; bass: number }[] = [
+  { pad: [57, 60, 64], bass: 45 }, // Am
+  { pad: [53, 57, 60], bass: 41 }, // F
+  { pad: [60, 64, 67], bass: 48 }, // C
+  { pad: [55, 59, 62], bass: 43 }, // G
 ]
-const CHORD_DUR = 7.5 // seconds per chord
+
+// Lead hook (MIDI per step, null = rest) — a memorable line over the progression
+const LEAD: (number | null)[] = new Array(TOTAL_STEPS).fill(null)
+;([
+  [0, 76], [2, 81], [4, 79], [7, 76],       // Am: E5 A5 G5 E5
+  [16, 77], [18, 81], [20, 84], [23, 81],   // F:  F5 A5 C6 A5
+  [32, 79], [34, 83], [36, 79], [39, 76],   // C:  G5 B5 G5 E5
+  [48, 74], [50, 79], [52, 83], [55, 81],   // G:  D5 G5 B5 A5
+] as [number, number][]).forEach(([s, n]) => { LEAD[s] = n })
+
+function arpNote(bar: number, step: number): number {
+  const tones = BARS[bar].pad
+  const pattern = [0, 1, 2, 1]
+  return tones[pattern[step % pattern.length]] + 12 // up an octave
+}
 
 let musicPlaying = false
-let chordTimer: ReturnType<typeof setTimeout> | null = null
-let arpTimer: ReturnType<typeof setInterval> | null = null
-let chordIndex = 0
-let currentChord: number[] = PROGRESSION[0]
+let schedTimer: ReturnType<typeof setInterval> | null = null
+let currentStep = 0
+let nextNoteTime = 0
 const activeNodes = new Set<AudioScheduledSourceNode>()
 
 function getMusicBus(c: AudioContext): GainNode {
@@ -247,92 +270,127 @@ function track(node: AudioScheduledSourceNode) {
   node.addEventListener('ended', () => activeNodes.delete(node))
 }
 
-function playPadChord(c: AudioContext, freqs: number[], startAt: number, dur: number) {
-  const bus = getMusicBus(c)
-  const lp = c.createBiquadFilter()
-  lp.type = 'lowpass'
-  lp.frequency.setValueAtTime(700, startAt)
-  lp.frequency.linearRampToValueAtTime(1100, startAt + dur * 0.5) // gentle opening
-  lp.frequency.linearRampToValueAtTime(700, startAt + dur)
-  lp.Q.value = 0.6
-  lp.connect(bus)
+let noiseBuf: AudioBuffer | null = null
+function getNoise(c: AudioContext): AudioBuffer {
+  if (!noiseBuf || noiseBuf.sampleRate !== c.sampleRate) {
+    const len = Math.floor(c.sampleRate * 0.4)
+    noiseBuf = c.createBuffer(1, len, c.sampleRate)
+    const d = noiseBuf.getChannelData(0)
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+  }
+  return noiseBuf
+}
 
-  const chordGain = c.createGain()
-  chordGain.gain.setValueAtTime(0.0001, startAt)
-  chordGain.gain.linearRampToValueAtTime(0.12, startAt + 2.0)          // slow swell in
-  chordGain.gain.setValueAtTime(0.12, startAt + dur - 2.0)
-  chordGain.gain.exponentialRampToValueAtTime(0.0001, startAt + dur)   // slow fade out
-  chordGain.connect(lp)
+// ---- instrument voices ----
 
-  // Each chord tone = two slightly detuned triangles for a warm, wide pad
-  for (const f of freqs) {
-    for (const detune of [-4, 4]) {
-      const osc = c.createOscillator()
-      osc.type = 'triangle'
-      osc.frequency.value = f
-      osc.detune.value = detune
-      osc.connect(chordGain)
-      osc.start(startAt)
-      osc.stop(startAt + dur + 0.1)
-      track(osc)
+function kick(c: AudioContext, t: number) {
+  const o = c.createOscillator()
+  const g = c.createGain()
+  o.type = 'sine'
+  o.frequency.setValueAtTime(140, t)
+  o.frequency.exponentialRampToValueAtTime(45, t + 0.11)
+  g.gain.setValueAtTime(0.5, t)
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.16)
+  o.connect(g); g.connect(getMusicBus(c))
+  o.start(t); o.stop(t + 0.2); track(o)
+}
+
+function snare(c: AudioContext, t: number) {
+  const dur = 0.16
+  const src = c.createBufferSource(); src.buffer = getNoise(c)
+  const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1900; bp.Q.value = 0.7
+  const g = c.createGain()
+  g.gain.setValueAtTime(0.28, t)
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur)
+  src.connect(bp); bp.connect(g); g.connect(getMusicBus(c))
+  src.start(t); src.stop(t + dur + 0.02); track(src)
+}
+
+function hat(c: AudioContext, t: number, gain: number) {
+  const dur = 0.035
+  const src = c.createBufferSource(); src.buffer = getNoise(c)
+  const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 8500
+  const g = c.createGain()
+  g.gain.setValueAtTime(gain, t)
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur)
+  src.connect(hp); hp.connect(g); g.connect(getMusicBus(c))
+  src.start(t); src.stop(t + dur + 0.02); track(src)
+}
+
+interface VoiceOpts {
+  type?: OscillatorType
+  gain?: number
+  cutoff?: number
+  detune?: number
+  useDelay?: boolean
+}
+
+function synthNote(c: AudioContext, midi: number, t: number, dur: number, opts: VoiceOpts = {}) {
+  const { type = 'sawtooth', gain = 0.14, cutoff = 2200, detune = 0, useDelay = false } = opts
+  const o = c.createOscillator()
+  o.type = type
+  o.frequency.value = midiToFreq(midi)
+  o.detune.value = detune
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = cutoff; lp.Q.value = 1
+  const g = c.createGain()
+  g.gain.setValueAtTime(0.0001, t)
+  g.gain.linearRampToValueAtTime(gain, t + 0.012)
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+  o.connect(lp); lp.connect(g); g.connect(getMusicBus(c))
+  if (useDelay) {
+    const d = c.createDelay(); d.delayTime.value = SIXTEENTH * 3
+    const fb = c.createGain(); fb.gain.value = 0.28
+    g.connect(d); d.connect(fb); fb.connect(d); fb.connect(getMusicBus(c))
+  }
+  o.start(t); o.stop(t + dur + 0.05); track(o)
+}
+
+function padChord(c: AudioContext, tones: number[], t: number, dur: number) {
+  for (const midi of tones) {
+    for (const dt of [-6, 6]) {
+      synthNote(c, midi, t, dur, { type: 'triangle', gain: 0.045, cutoff: 1300, detune: dt })
     }
   }
-
-  // Sub bass one octave below the root
-  const bass = c.createOscillator()
-  const bassGain = c.createGain()
-  bass.type = 'sine'
-  bass.frequency.value = freqs[0] / 2
-  bassGain.gain.setValueAtTime(0.0001, startAt)
-  bassGain.gain.linearRampToValueAtTime(0.06, startAt + 1.5)
-  bassGain.gain.setValueAtTime(0.06, startAt + dur - 1.5)
-  bassGain.gain.exponentialRampToValueAtTime(0.0001, startAt + dur)
-  bass.connect(bassGain)
-  bassGain.connect(bus)
-  bass.start(startAt)
-  bass.stop(startAt + dur + 0.1)
-  track(bass)
 }
 
-function playArpBlip(c: AudioContext) {
-  if (!musicPlaying) return
-  if (Math.random() < 0.35) return // leave space — sparse, not busy
-  const bus = getMusicBus(c)
-  const t = c.currentTime
-  const note = currentChord[Math.floor(Math.random() * currentChord.length)] * 2 // up an octave
-  const osc = c.createOscillator()
-  const gain = c.createGain()
-  osc.type = 'sine'
-  osc.frequency.value = note
-  gain.gain.setValueAtTime(0.0001, t)
-  gain.gain.linearRampToValueAtTime(0.03, t + 0.02)
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.9)
+// ---- sequencer ----
 
-  // A touch of echo for space
-  const delay = c.createDelay()
-  delay.delayTime.value = 0.32
-  const fb = c.createGain()
-  fb.gain.value = 0.28
-  gain.connect(bus)
-  gain.connect(delay)
-  delay.connect(fb)
-  fb.connect(delay)
-  fb.connect(bus)
+function scheduleStep(c: AudioContext, step: number, t: number) {
+  const bar = Math.floor(step / STEPS_PER_BAR)
+  const inBar = step % STEPS_PER_BAR
+  const data = BARS[bar]
 
-  osc.connect(gain)
-  osc.start(t)
-  osc.stop(t + 1.0)
-  track(osc)
+  // Drums: 4-on-the-floor kick, snare on 2 & 4, offbeat hats (+ soft 16th ghosts)
+  if (inBar % 4 === 0) kick(c, t)
+  if (inBar === 4 || inBar === 12) snare(c, t)
+  if (inBar % 4 === 2) hat(c, t, 0.11)
+  else if (inBar % 2 === 1) hat(c, t, 0.05)
+
+  // Driving bass on the eighths, octave lift on the last eighth of each beat-pair
+  if (inBar % 2 === 0) {
+    const oct = (inBar === 6 || inBar === 14) ? 12 : 0
+    synthNote(c, data.bass + oct, t, SIXTEENTH * 1.7, { type: 'sawtooth', gain: 0.16, cutoff: 900 })
+  }
+
+  // Bright 16th arpeggio — the synthwave shimmer
+  synthNote(c, arpNote(bar, step), t, SIXTEENTH * 1.3, { type: 'square', gain: 0.09, cutoff: 2800, useDelay: true })
+
+  // Sustained pad at the start of each bar
+  if (inBar === 0) padChord(c, data.pad, t, STEPS_PER_BAR * SIXTEENTH * 0.97)
+
+  // Lead hook
+  const ld = LEAD[step]
+  if (ld != null) synthNote(c, ld, t, SIXTEENTH * 3.5, { type: 'sawtooth', gain: 0.1, cutoff: 3400, useDelay: true })
 }
 
-function scheduleChord() {
+function scheduler() {
   const c = getCtx()
   if (!c || !musicPlaying) return
-  currentChord = PROGRESSION[chordIndex]
-  playPadChord(c, currentChord, c.currentTime, CHORD_DUR)
-  chordIndex = (chordIndex + 1) % PROGRESSION.length
-  // start the next chord slightly before this one fully releases → smooth crossfade
-  chordTimer = setTimeout(scheduleChord, (CHORD_DUR - 1.5) * 1000)
+  while (nextNoteTime < c.currentTime + 0.12) {
+    scheduleStep(c, currentStep, nextNoteTime)
+    nextNoteTime += SIXTEENTH
+    currentStep = (currentStep + 1) % TOTAL_STEPS
+  }
 }
 
 export function startMusic(): void {
@@ -340,32 +398,30 @@ export function startMusic(): void {
   const c = getCtx()
   if (!c) return
   musicPlaying = true
+  currentStep = 0
+  nextNoteTime = c.currentTime + 0.1
   const bus = getMusicBus(c)
   bus.gain.cancelScheduledValues(c.currentTime)
   bus.gain.setValueAtTime(Math.max(0.0001, bus.gain.value), c.currentTime)
-  bus.gain.linearRampToValueAtTime(0.5, c.currentTime + 2.0) // fade in
-  scheduleChord()
-  arpTimer = setInterval(() => {
-    try { playArpBlip(c) } catch { /* ignore */ }
-  }, 1900)
+  bus.gain.linearRampToValueAtTime(MUSIC_LEVEL, c.currentTime + 1.2) // fade in
+  schedTimer = setInterval(scheduler, 25)
+  scheduler()
 }
 
 export function stopMusic(): void {
   if (!musicPlaying) return
   musicPlaying = false
-  if (chordTimer) { clearTimeout(chordTimer); chordTimer = null }
-  if (arpTimer) { clearInterval(arpTimer); arpTimer = null }
+  if (schedTimer) { clearInterval(schedTimer); schedTimer = null }
   const c = ctx
   if (c && musicBus) {
     musicBus.gain.cancelScheduledValues(c.currentTime)
     musicBus.gain.setValueAtTime(musicBus.gain.value, c.currentTime)
-    musicBus.gain.linearRampToValueAtTime(0.0001, c.currentTime + 0.6) // fade out
+    musicBus.gain.linearRampToValueAtTime(0.0001, c.currentTime + 0.5) // fade out
   }
-  // hard-stop lingering oscillators shortly after the fade
   setTimeout(() => {
     for (const node of activeNodes) {
       try { node.stop() } catch { /* already stopped */ }
     }
     activeNodes.clear()
-  }, 700)
+  }, 600)
 }
