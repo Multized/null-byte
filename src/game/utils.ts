@@ -34,6 +34,14 @@ export function formatRate(bps: number): string {
   return `${formatBits(bps)}/s`
 }
 
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.max(1, Math.floor(seconds))}s`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  return `${h}h ${m}m`
+}
+
 export function calcProducerCost(producerId: string, owned: number): number {
   const def = PRODUCERS.find(p => p.id === producerId)
   if (!def) return Infinity
@@ -66,12 +74,13 @@ export function calcMaxAffordable(producerId: string, owned: number, bits: numbe
 
 export function calcProducerMultiplier(producerId: string, state: GameState): number {
   let mult = 1
-  const relevant = UPGRADES.filter(
-    u => u.type === 'producer_multiplier' && u.target === producerId
-  )
-  for (const u of relevant) {
-    if (state.purchasedUpgrades.includes(u.id)) {
+  for (const u of UPGRADES) {
+    if (u.target !== producerId || !state.purchasedUpgrades.includes(u.id)) continue
+    if (u.type === 'producer_multiplier') {
       mult *= (u.multiplier ?? 1)
+    } else if (u.type === 'synergy' && u.synergySource && u.synergyValue) {
+      const sourceCount = state.producers[u.synergySource] ?? 0
+      mult *= 1 + (u.synergyValue / 100) * sourceCount
     }
   }
   mult *= calcMilestoneMultiplier(producerId, state)

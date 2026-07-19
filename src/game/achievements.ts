@@ -280,6 +280,57 @@ const miscAchievements: AchievementDef[] = [
   },
 ]
 
+const activityAchievements: AchievementDef[] = [
+  {
+    id: 'packet_1',
+    name: 'Abgefangen',
+    description: '1 Data Packet gefangen',
+    flavor: 'Unverschlüsselt und herrenlos. Jetzt deins.',
+    icon: '📦',
+    check: s => s.packetsCaught >= 1,
+  },
+  {
+    id: 'packet_25',
+    name: 'Paketdieb',
+    description: '25 Data Packets gefangen',
+    flavor: 'DHL hasst diesen Trick.',
+    icon: '📦',
+    check: s => s.packetsCaught >= 25,
+  },
+  {
+    id: 'contracts_5',
+    name: 'Auftragnehmer',
+    description: '5 Aufträge abgeschlossen',
+    flavor: 'Zuverlässig, diskret, bezahlbar in Bits.',
+    icon: '📋',
+    check: s => s.contractsCompleted >= 5,
+  },
+  {
+    id: 'contracts_50',
+    name: 'Söldner des Netzes',
+    description: '50 Aufträge abgeschlossen',
+    flavor: 'Dein Ruf eilt dir durch jeden Backbone voraus.',
+    icon: '📋',
+    check: s => s.contractsCompleted >= 50,
+  },
+  {
+    id: 'streak_7',
+    name: 'Stammgast',
+    description: '7 Tage Daily Streak',
+    flavor: 'Eine Woche ohne Ausfall. Dein System auch.',
+    icon: '🔥',
+    check: s => s.dailyStreak >= 7,
+  },
+  {
+    id: 'playtime_10h',
+    name: 'Terminal-Bewohner',
+    description: '10 Stunden Spielzeit',
+    flavor: 'Sonnenlicht ist auch nur ein weiterer ungepatchter Exploit.',
+    icon: '⏱',
+    check: s => s.totalPlaytimeSeconds >= 36_000,
+  },
+]
+
 export const ACHIEVEMENTS: AchievementDef[] = [
   ...clickAchievements,
   ...wealthAchievements,
@@ -289,6 +340,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   ...eventAchievements,
   ...upgradeAchievements,
   ...comboAchievements,
+  ...activityAchievements,
   ...miscAchievements,
 ]
 

@@ -13,10 +13,12 @@ export interface UpgradeDef {
   description: string
   flavor: string
   cost: number
-  type: 'producer_multiplier' | 'click_multiplier' | 'offline_cap'
+  type: 'producer_multiplier' | 'click_multiplier' | 'offline_cap' | 'synergy'
   target?: string
   multiplier?: number
   offlineHours?: number
+  synergySource?: string
+  synergyValue?: number
   unlockProducerId?: string
   unlockProducerMin?: number
   unlockBitsMin?: number
@@ -31,6 +33,25 @@ export interface PrestigeUpgradeDef {
   effect: 'global_multiplier' | 'click_multiplier' | 'start_bits' | 'ghost_bonus' | 'offline_efficiency' | 'auto_buy'
   value: number
   maxPurchases: number
+}
+
+export type ContractType =
+  | 'clicks'
+  | 'buy_producers'
+  | 'earn_bits'
+  | 'reach_combo'
+  | 'claim_event'
+  | 'buy_upgrades'
+  | 'catch_packet'
+  | 'playtime'
+
+export interface ActiveContract {
+  id: string
+  type: ContractType
+  target: number
+  baseline: number
+  reward: number
+  rewardGc: number
 }
 
 export interface GameState {
@@ -51,4 +72,12 @@ export interface GameState {
   totalEventsClaimed: number
   maxCombo: number
   unlockedAchievements: string[]
+  totalPlaytimeSeconds: number
+  packetsCaught: number
+  totalProducersBought: number
+  totalUpgradesBought: number
+  contractsCompleted: number
+  activeContracts: ActiveContract[]
+  dailyStreak: number
+  lastDailyClaim: string
 }

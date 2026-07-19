@@ -18,7 +18,9 @@ export function AchievementToastQueue() {
     return subscribeToast(event => {
       const id = ++idCounter
       setQueue(prev => [...prev, { id, event }])
-      playSound(event.kind === 'achievement' ? 'achievement' : 'milestone')
+      if (event.kind !== 'info') {
+        playSound(event.kind === 'achievement' ? 'achievement' : 'milestone')
+      }
       const t = setTimeout(() => {
         setQueue(prev => prev.filter(q => q.id !== id))
         timersRef.current.delete(id)
@@ -66,7 +68,7 @@ export function AchievementToastQueue() {
                 </div>
               </div>
             </>
-          ) : (
+          ) : event.kind === 'milestone' ? (
             <>
               <div className="font-mono text-[10px] text-cyan-500 tracking-widest uppercase mb-1">
                 &gt; milestone_reached.sh
@@ -83,6 +85,18 @@ export function AchievementToastQueue() {
                 </div>
               </div>
             </>
+          ) : (
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl shrink-0">{event.icon}</span>
+              <div className="min-w-0">
+                <div className="font-mono text-sm font-semibold text-cyan-300 truncate">
+                  {event.title}
+                </div>
+                <div className="font-mono text-[10px] text-slate-500 truncate">
+                  {event.text}
+                </div>
+              </div>
+            </div>
           )}
         </div>
       ))}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useGameStore } from '../game/store'
 import {
   formatBits,
+  formatDuration,
   calcProducerMultiplier,
   calcBulkProducerCost,
   calcMaxAffordable,
@@ -78,6 +79,8 @@ export function ProducerList() {
         // affordability progress 0..1 (only show when somewhat close)
         const affordPct = Math.min(bits / cost, 1)
         const showProgress = !canAfford && affordPct > 0.1
+        const bps = state.bitsPerSecond
+        const etaSeconds = !canAfford && bps > 0 ? (cost - bits) / bps : null
 
         // Milestone progress
         const next = nextMilestone(def.id, state)
@@ -168,6 +171,9 @@ export function ProducerList() {
                 {showProgress && (
                   <div className="font-mono text-[10px] text-slate-600">
                     {Math.floor(affordPct * 100)}%
+                    {etaSeconds !== null && etaSeconds < 86_400 && (
+                      <span className="text-slate-700"> · ~{formatDuration(etaSeconds)}</span>
+                    )}
                   </div>
                 )}
               </div>

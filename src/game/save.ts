@@ -38,6 +38,14 @@ export function loadGame(): GameState | null {
       totalEventsClaimed: data.totalEventsClaimed ?? 0,
       maxCombo: data.maxCombo ?? 0,
       unlockedAchievements: data.unlockedAchievements ?? [],
+      totalPlaytimeSeconds: data.totalPlaytimeSeconds ?? 0,
+      packetsCaught: data.packetsCaught ?? 0,
+      totalProducersBought: data.totalProducersBought ?? 0,
+      totalUpgradesBought: data.totalUpgradesBought ?? 0,
+      contractsCompleted: data.contractsCompleted ?? 0,
+      activeContracts: data.activeContracts ?? [],
+      dailyStreak: data.dailyStreak ?? 0,
+      lastDailyClaim: data.lastDailyClaim ?? '',
     }
   } catch (e) {
     console.error('Load failed:', e)

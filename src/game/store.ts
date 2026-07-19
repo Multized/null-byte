@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { GameState } from './types'
+import type { GameState, ActiveContract } from './types'
 import {
   calcBitsPerSecond,
   calcBitsPerClick,
@@ -12,7 +12,18 @@ import {
 } from './utils'
 import { UPGRADES, PRESTIGE_UPGRADES, PRESTIGE_UNLOCK_BITS, MILESTONE_THRESHOLDS, PRODUCERS } from './constants'
 import { findNewlyUnlocked } from './achievements'
+import { rollContract, isContractComplete } from './contracts'
 import { emitToast } from './toastBus'
+
+function todayString(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function yesterdayString(): string {
+  const d = new Date(Date.now() - 24 * 3600 * 1000)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 function generatePlayerId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -60,6 +71,14 @@ function defaultState(): GameState {
     totalEventsClaimed: 0,
     maxCombo: 0,
     unlockedAchievements: [],
+    totalPlaytimeSeconds: 0,
+    packetsCaught: 0,
+    totalProducersBought: 0,
+    totalUpgradesBought: 0,
+    contractsCompleted: 0,
+    activeContracts: [],
+    dailyStreak: 0,
+    lastDailyClaim: '',
   }
 }
 
@@ -89,6 +108,10 @@ interface GameStore extends GameState {
   recordEventClaim: () => void
   recordCombo: (combo: number) => void
   checkAchievements: () => string[]
+  recordPacketCaught: () => void
+  ensureContracts: () => void
+  claimContract: (id: string) => ActiveContract | null
+  claimDaily: () => { streak: number; reward: number } | null
 }
 
 function computeDerived(state: GameState) {
@@ -133,14 +156,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const bpsMult = now < state.eventExpiresAt ? state.eventBpsMultiplier : 1
     const bps = calcBitsPerSecond(state) * bpsMult
     const earned = bps * delta
-    if (earned <= 0) return
     set(s => {
       const next: Partial<GameState> = {
-        bits: s.bits + earned,
-        totalBitsEarned: s.totalBitsEarned + earned,
+        totalPlaytimeSeconds: s.totalPlaytimeSeconds + delta,
+      }
+      if (earned > 0) {
+        next.bits = s.bits + earned
+        next.totalBitsEarned = s.totalBitsEarned + earned
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })
+    if (earned <= 0) return
     get().checkAchievements()
 
     if (hasAutoBuy(get())) {
@@ -193,6 +219,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const next: Partial<GameState> = {
         bits: s.bits - cost,
         producers,
+        totalProducersBought: s.totalProducersBought + actualQty,
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })
@@ -212,6 +239,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const next: Partial<GameState> = {
         bits: s.bits - upgrade.cost,
         purchasedUpgrades,
+        totalUpgradesBought: s.totalUpgradesBought + 1,
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })
@@ -285,6 +313,59 @@ export const useGameStore = create<GameStore>((set, get) => ({
     get().checkAchievements()
   },
 
+  recordPacketCaught: () => {
+    set(s => ({ packetsCaught: s.packetsCaught + 1 }))
+    get().checkAchievements()
+  },
+
+  ensureContracts: () => {
+    let state = get()
+    while (state.activeContracts.length < 3) {
+      const contract = rollContract(state)
+      set(s => ({ activeContracts: [...s.activeContracts, contract] }))
+      state = get()
+    }
+  },
+
+  claimContract: (id: string) => {
+    const state = get()
+    const contract = state.activeContracts.find(c => c.id === id)
+    if (!contract || !isContractComplete(contract, state)) return null
+    set(s => {
+      const next: Partial<GameState> = {
+        bits: s.bits + contract.reward,
+        totalBitsEarned: s.totalBitsEarned + contract.reward,
+        ghostCredits: s.ghostCredits + contract.rewardGc,
+        totalGhostCreditsEarned: s.totalGhostCreditsEarned + contract.rewardGc,
+        contractsCompleted: s.contractsCompleted + 1,
+        activeContracts: s.activeContracts.filter(c => c.id !== id),
+      }
+      return { ...next, ...computeDerived({ ...s, ...next }) }
+    })
+    get().ensureContracts()
+    get().checkAchievements()
+    return contract
+  },
+
+  claimDaily: () => {
+    const state = get()
+    const today = todayString()
+    if (state.lastDailyClaim === today) return null
+    const streak = state.lastDailyClaim === yesterdayString() ? state.dailyStreak + 1 : 1
+    const reward = Math.max(50, Math.ceil(calcBitsPerSecond(state) * 600 * Math.min(streak, 7)))
+    set(s => {
+      const next: Partial<GameState> = {
+        bits: s.bits + reward,
+        totalBitsEarned: s.totalBitsEarned + reward,
+        dailyStreak: streak,
+        lastDailyClaim: today,
+      }
+      return { ...next, ...computeDerived({ ...s, ...next }) }
+    })
+    get().checkAchievements()
+    return { streak, reward }
+  },
+
   checkAchievements: () => {
     const state = get()
     const newly = findNewlyUnlocked(state)
@@ -319,6 +400,14 @@ export function getSerializableState(): GameState {
     totalEventsClaimed: s.totalEventsClaimed,
     maxCombo: s.maxCombo,
     unlockedAchievements: s.unlockedAchievements,
+    totalPlaytimeSeconds: s.totalPlaytimeSeconds,
+    packetsCaught: s.packetsCaught,
+    totalProducersBought: s.totalProducersBought,
+    totalUpgradesBought: s.totalUpgradesBought,
+    contractsCompleted: s.contractsCompleted,
+    activeContracts: s.activeContracts,
+    dailyStreak: s.dailyStreak,
+    lastDailyClaim: s.lastDailyClaim,
   }
 }
 

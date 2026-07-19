@@ -4,12 +4,23 @@ import { formatBits, formatRate, calcGlobalMultiplier, calcGhostCreditsFromBits 
 import { PRESTIGE_UNLOCK_BITS } from '../game/constants'
 import { playSound } from '../game/sound'
 import { useTweenedNumber } from '../hooks/useTweenedNumber'
+import { ContractsPanel } from './ContractsPanel'
 
 interface FloatText {
   id: number
   x: number
   y: number
   text: string
+}
+
+interface Particle {
+  id: number
+  x: number
+  y: number
+  px: number
+  py: number
+  glyph: string
+  color: string
 }
 
 let floatIdCounter = 0
@@ -53,6 +64,7 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
   const permanentMult = calcGlobalMultiplier(state)
 
   const [floats, setFloats] = useState<FloatText[]>([])
+  const [particles, setParticles] = useState<Particle[]>([])
   const [isFlashing, setIsFlashing] = useState(false)
   const [combo, setCombo] = useState(0)
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -85,6 +97,28 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
     const comboSuffix = newCombo >= 3 ? ` ×${(comboMultiplier).toFixed(2)}` : ''
     setFloats(prev => [...prev, { id, x, y, text: `+${formatBits(earned)}${comboSuffix}` }])
     setTimeout(() => setFloats(prev => prev.filter(f => f.id !== id)), 1000)
+
+    // Glyph burst from the click point; more + hotter colored at high combo
+    const hue = 190 - Math.min(1, (newCombo - 1) / (COMBO_CAP - 1)) * 160
+    const count = newCombo >= 10 ? 8 : 5
+    const burst: Particle[] = Array.from({ length: count }, () => {
+      const angle = Math.random() * Math.PI * 2
+      const dist = 40 + Math.random() * 50
+      return {
+        id: floatIdCounter++,
+        x: e.clientX,
+        y: e.clientY,
+        px: Math.cos(angle) * dist,
+        py: Math.sin(angle) * dist,
+        glyph: Math.random() < 0.5 ? '0' : '1',
+        color: `hsl(${hue} 90% 60%)`,
+      }
+    })
+    setParticles(prev => [...prev, ...burst])
+    setTimeout(() => {
+      const ids = new Set(burst.map(p => p.id))
+      setParticles(prev => prev.filter(p => !ids.has(p.id)))
+    }, 700)
   }, [click, combo, recordCombo])
 
   const comboPct = Math.min(1, (combo - 1) / (COMBO_CAP - 1))
@@ -190,6 +224,23 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
         </div>
       ))}
 
+      {/* Click glyph particles */}
+      {particles.map(p => (
+        <span
+          key={p.id}
+          className="click-particle"
+          style={{
+            left: p.x,
+            top: p.y,
+            color: p.color,
+            ['--px' as string]: `${p.px}px`,
+            ['--py' as string]: `${p.py}px`,
+          }}
+        >
+          {p.glyph}
+        </span>
+      ))}
+
       {/* Reserved single-line status zone: event takes priority over the prestige teaser */}
       <div className="w-full min-h-[38px] flex items-center">
         {eventActive ? (
@@ -248,6 +299,9 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
           </button>
         )}
       </div>
+
+      {/* Rotating contracts — the short-term goal loop */}
+      <ContractsPanel />
     </div>
   )
 }

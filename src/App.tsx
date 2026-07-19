@@ -19,8 +19,12 @@ import { OnboardingHint } from './components/OnboardingHint'
 import { EventPopup, type GameEvent, type GameEventType } from './components/EventPopup'
 import { AchievementToastQueue } from './components/AchievementToast'
 import { AchievementsPanel } from './components/AchievementsPanel'
-import { isUpgradeUnlocked } from './game/utils'
+import { DataPacketLayer } from './components/DataPacketLayer'
+import { StatsPanel } from './components/StatsPanel'
+import { MatrixRain } from './components/MatrixRain'
+import { isUpgradeUnlocked, formatBits } from './game/utils'
 import { UPGRADES } from './game/constants'
+import { emitToast } from './game/toastBus'
 
 type MobileTab = 'run' | 'shop' | 'upgrades' | 'rank'
 type DesktopTab = 'shop' | 'mods' | 'agent'
@@ -76,6 +80,19 @@ export default function App() {
     } else {
       setShowNameModal(true)
     }
+
+    // Daily streak — auto-claimed once per calendar day, announced via toast
+    setTimeout(() => {
+      const daily = useGameStore.getState().claimDaily()
+      if (daily) {
+        emitToast({
+          kind: 'info',
+          icon: '🔥',
+          title: `Daily Streak · Tag ${daily.streak}`,
+          text: `+${formatBits(daily.reward)} Login-Bonus`,
+        })
+      }
+    }, 1200)
   }, [loadState])
 
   // Game loop
@@ -162,9 +179,12 @@ export default function App() {
 
         {/* Left: Gameplay — click area takes full focus */}
         <div className="flex-1 min-h-0 flex flex-col items-center overflow-y-auto relative">
-          {/* subtle scanline bg, intensifies with progress tier */}
+          {/* ambient background: code rain + scanlines + vignette, intensify with progress tier */}
+          <MatrixRain hue={tierHue} opacity={0.05 + visualTier * 0.014} />
           <div className="scanline pointer-events-none absolute inset-0 transition-opacity duration-1000" style={{ opacity: scanlineOpacity }} />
+          <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.4) 100%)' }} />
           <ClickArea onPrestigeClick={() => setShowPrestige(true)} onGhostShopClick={() => setShowGhostShop(true)} />
+          <DataPacketLayer />
         </div>
 
         {/* Right: Tabbed management panel */}
@@ -211,6 +231,9 @@ export default function App() {
                   <Leaderboard onEntriesChange={setLeaderboardEntries} />
                 </div>
                 <div className="border-t border-slate-800/50">
+                  <StatsPanel />
+                </div>
+                <div className="border-t border-slate-800/50">
                   <AchievementsPanel />
                 </div>
               </div>
@@ -222,13 +245,20 @@ export default function App() {
       {/* Mobile Layout */}
       <div className="md:hidden flex-1 min-h-0 overflow-hidden flex flex-col">
         <div className="flex-1 min-h-0 overflow-y-auto pb-16">
-          {mobileTab === 'run' && <ClickArea onPrestigeClick={() => setShowPrestige(true)} onGhostShopClick={() => setShowGhostShop(true)} />}
+          {mobileTab === 'run' && (
+            <div className="relative min-h-full flex flex-col items-center">
+              <MatrixRain hue={tierHue} opacity={0.05 + visualTier * 0.014} />
+              <ClickArea onPrestigeClick={() => setShowPrestige(true)} onGhostShopClick={() => setShowGhostShop(true)} />
+              <DataPacketLayer />
+            </div>
+          )}
           {mobileTab === 'shop' && <ProducerList />}
           {mobileTab === 'upgrades' && <UpgradePanel />}
           {mobileTab === 'rank' && (
             <div className="space-y-2 p-2">
               <AccountPanel entries={leaderboardEntries} />
               <Leaderboard onEntriesChange={setLeaderboardEntries} />
+              <StatsPanel />
               <AchievementsPanel />
             </div>
           )}

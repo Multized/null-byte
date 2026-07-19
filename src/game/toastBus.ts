@@ -3,6 +3,7 @@ import type { AchievementDef } from './achievements'
 export type ToastEvent =
   | { kind: 'achievement'; def: AchievementDef }
   | { kind: 'milestone'; producerName: string; producerIcon: string; threshold: number }
+  | { kind: 'info'; icon: string; title: string; text: string }
 
 type Listener = (e: ToastEvent) => void
 

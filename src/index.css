@@ -170,6 +170,30 @@
   animation: combo-pop 0.2s ease-out;
 }
 
+@keyframes packet-bob {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-6px) rotate(4deg); }
+}
+
+.packet-bob {
+  animation: packet-bob 1.2s ease-in-out infinite;
+}
+
+@keyframes particle-fly {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--px), var(--py)) scale(0.4); }
+}
+
+.click-particle {
+  position: fixed;
+  z-index: 99;
+  pointer-events: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  animation: particle-fly 0.65s ease-out forwards;
+}
+
 .status-in {
   animation: status-in 0.2s ease-out;
 }
