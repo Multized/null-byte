@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { useGameStore } from '../game/store'
-import { formatBits, formatRate } from '../game/utils'
+import { formatBits, formatRate, calcGlobalMultiplier, calcGhostCreditsFromBits } from '../game/utils'
 import { PRESTIGE_UNLOCK_BITS } from '../game/constants'
 import { playSound } from '../game/sound'
 import { useTweenedNumber } from '../hooks/useTweenedNumber'
@@ -19,9 +19,10 @@ const COMBO_CAP = 20
 
 interface Props {
   onPrestigeClick: () => void
+  onGhostShopClick: () => void
 }
 
-export function ClickArea({ onPrestigeClick }: Props) {
+export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
   const click = useGameStore(s => s.click)
   const recordCombo = useGameStore(s => s.recordCombo)
   const bitsPerClick = useGameStore(s => s.bitsPerClick)
@@ -32,9 +33,11 @@ export function ClickArea({ onPrestigeClick }: Props) {
   const eventBpsMultiplier = useGameStore(s => s.eventBpsMultiplier)
   const eventClickMultiplier = useGameStore(s => s.eventClickMultiplier)
   const eventExpiresAt = useGameStore(s => s.eventExpiresAt)
+  const state = useGameStore(s => s)
   const now = Date.now()
   const eventActive = eventExpiresAt > now
   const eventSecondsLeft = eventActive ? Math.ceil((eventExpiresAt - now) / 1000) : 0
+  const permanentMult = calcGlobalMultiplier(state)
 
   const [floats, setFloats] = useState<FloatText[]>([])
   const [isFlashing, setIsFlashing] = useState(false)
@@ -76,6 +79,9 @@ export function ClickArea({ onPrestigeClick }: Props) {
 
   const canPrestige = totalBitsEarned >= PRESTIGE_UNLOCK_BITS
   const hasGhostCredits = ghostCredits > 0
+  const prestigeProgress = Math.min(1, totalBitsEarned / PRESTIGE_UNLOCK_BITS)
+  const willEarnGc = canPrestige ? calcGhostCreditsFromBits(totalBitsEarned, state) : 0
+  const showPrestigeTeaser = !canPrestige && prestigeCount === 0 && prestigeProgress > 0.02
 
   return (
     <div className="flex flex-col items-center gap-8 py-8 w-full max-w-md px-6">
@@ -90,8 +96,14 @@ export function ClickArea({ onPrestigeClick }: Props) {
           <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-0.5">per second</div>
           <div className="font-mono text-sm font-semibold text-cyan-400">{formatRate(displayBps)}</div>
         </div>
+        {permanentMult > 1.001 && (
+          <div className="card border-purple-900/30 px-4 py-2.5 text-center" title="Permanenter Bonus aus Ghost-Shop-Käufen &amp; Achievements">
+            <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-0.5">permanent-bonus</div>
+            <div className="font-mono text-sm font-semibold neon-purple">×{permanentMult.toFixed(2)}</div>
+          </div>
+        )}
         {ghostCredits > 0 && (
-          <div className="card border-purple-900/30 px-4 py-2.5 text-center col-span-2">
+          <div className={`card border-purple-900/30 px-4 py-2.5 text-center ${permanentMult > 1.001 ? '' : 'col-span-2'}`}>
             <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-0.5">ghost credits</div>
             <div className="font-mono text-sm font-semibold neon-purple">{Math.floor(ghostCredits)}</div>
           </div>
@@ -172,24 +184,48 @@ export function ClickArea({ onPrestigeClick }: Props) {
         </div>
       )}
 
-      {/* Prestige / Ghost Shop */}
-      {(canPrestige || hasGhostCredits) && (
+      {/* Prestige teaser — builds anticipation before first prestige is even reachable */}
+      {showPrestigeTeaser && (
+        <div className="w-full">
+          <div className="flex items-center justify-between font-mono text-[10px] text-slate-600 mb-1">
+            <span>Fortschritt bis Prestige</span>
+            <span>{Math.floor(prestigeProgress * 100)}%</span>
+          </div>
+          <div className="w-full h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-purple-600/50 transition-all duration-500"
+              style={{ width: `${prestigeProgress * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Prestige CTA — clearly distinct from the Ghost Shop entry below */}
+      {canPrestige && (
         <button
           onClick={onPrestigeClick}
-          className={`
+          className="
             w-full font-mono text-xs px-4 py-3 rounded
-            border text-purple-300 bg-purple-900/10
-            hover:bg-purple-900/25 transition-all duration-150
-            ${canPrestige
-              ? 'border-purple-600/50 hover:border-purple-500/70 animate-pulse'
-              : 'border-purple-800/40 hover:border-purple-700/60'
-            }
-          `}
+            border border-purple-500/60 text-purple-200 bg-purple-900/20
+            hover:bg-purple-900/35 hover:border-purple-400 transition-all duration-150
+            animate-pulse font-semibold tracking-wide
+          "
         >
-          {canPrestige
-            ? '> go_dark.sh — prestige verfügbar'
-            : `> ghost_shop.sh — ${Math.floor(ghostCredits)} gc verfügbar`
-          }
+          ⬆ PRESTIGE VERFÜGBAR — +{willEarnGc} Ghost Credits
+        </button>
+      )}
+
+      {/* Ghost Shop entry — always available once you have anything to show for it, never resets anything */}
+      {(hasGhostCredits || prestigeCount > 0) && (
+        <button
+          onClick={onGhostShopClick}
+          className="
+            w-full font-mono text-xs px-4 py-2.5 rounded
+            border border-indigo-800/40 text-indigo-300/80 bg-indigo-950/10
+            hover:bg-indigo-950/20 hover:border-indigo-600/50 transition-all duration-150
+          "
+        >
+          👻 Ghost Shop{hasGhostCredits ? ` — ${Math.floor(ghostCredits)} gc verfügbar` : ''}
         </button>
       )}
     </div>

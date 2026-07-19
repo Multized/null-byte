@@ -1,22 +1,34 @@
 import { useGameStore } from '../game/store'
-import { formatBits, calcGhostCreditsFromBits } from '../game/utils'
-import { PRESTIGE_UPGRADES } from '../game/constants'
+import {
+  formatBits,
+  calcGhostCreditsFromBits,
+  calcGlobalMultiplier,
+  calcClickMultiplier,
+  getStartBits,
+} from '../game/utils'
 import { playSound } from '../game/sound'
+import type { GameState } from '../game/types'
 
 interface Props {
   onClose: () => void
+  onOpenGhostShop: () => void
 }
 
-export function PrestigeModal({ onClose }: Props) {
-  const totalBitsEarned = useGameStore(s => s.totalBitsEarned)
-  const ghostCredits = useGameStore(s => s.ghostCredits)
-  const purchasedPrestigeUpgrades = useGameStore(s => s.purchasedPrestigeUpgrades)
-  const prestige = useGameStore(s => s.prestige)
-  const buyPrestigeUpgrade = useGameStore(s => s.buyPrestigeUpgrade)
+export function PrestigeModal({ onClose, onOpenGhostShop }: Props) {
   const state = useGameStore(s => s)
+  const prestige = useGameStore(s => s.prestige)
 
-  const willEarn = calcGhostCreditsFromBits(totalBitsEarned, state)
-  const totalAfter = ghostCredits + willEarn
+  const willEarn = calcGhostCreditsFromBits(state.totalBitsEarned, state)
+  const ghostCreditsAfter = state.ghostCredits + willEarn
+
+  // Project the state right after prestige to preview what the next run starts with —
+  // purchased Ghost Shop upgrades persist across resets, producers/upgrades do not.
+  const projected: GameState = { ...state, producers: {}, purchasedUpgrades: [] }
+  const nextGlobalMult = calcGlobalMultiplier(projected)
+  const nextClickMult = calcClickMultiplier(projected)
+  const nextStartBits = getStartBits(projected)
+
+  const hasCarryOverBonus = nextGlobalMult > 1.001 || nextClickMult > 1.001 || nextStartBits > 0
 
   const handlePrestige = () => {
     prestige()
@@ -29,86 +41,81 @@ export function PrestigeModal({ onClose }: Props) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="w-full max-w-md card border-purple-800/40 p-5 space-y-5">
+      <div className="w-full max-w-md card border-purple-800/40 p-5 space-y-4 max-h-[85vh] overflow-y-auto">
         {/* Header */}
         <div>
           <div className="font-mono text-lg font-semibold neon-purple">
-            &gt; go_dark.sh
+            ⬆ Neustart mit Bonus
           </div>
           <div className="font-mono text-xs text-slate-500 mt-1">
-            Alles zurücksetzen. Spuren verwischen. Stärker zurückkommen.
+            Dein Fortschritt wird in permanente Währung getauscht — dein nächster Run startet stärker.
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="card bg-[#0a0a10] border-purple-900/30 p-3 space-y-2">
-          <div className="flex justify-between font-mono text-sm">
-            <span className="text-slate-500">Total verdient</span>
-            <span className="text-slate-300">{formatBits(totalBitsEarned)}</span>
+        {/* Hero: Ghost Credits gained */}
+        <div className="card bg-[#0a0a10] border-purple-900/30 p-4 text-center">
+          <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-1">
+            Du erhältst
           </div>
-          <div className="flex justify-between font-mono text-sm">
-            <span className="text-slate-500">Ghost Credits erhalten</span>
-            <span className="neon-purple font-semibold">+{willEarn}</span>
+          <div className="font-mono text-3xl font-bold neon-purple">
+            +{willEarn} <span className="text-lg">Ghost Credits</span>
           </div>
-          <div className="border-t border-slate-800 pt-2 flex justify-between font-mono text-sm">
-            <span className="text-slate-500">Ghost Credits total</span>
-            <span className="neon-purple font-semibold">{Math.floor(totalAfter)}</span>
+          <div className="font-mono text-[10px] text-slate-600 mt-1">
+            {Math.floor(state.ghostCredits)} → {Math.floor(ghostCreditsAfter)} gc gesamt
           </div>
         </div>
 
-        {/* Prestige upgrades shop */}
-        {PRESTIGE_UPGRADES.length > 0 && (
-          <div>
-            <div className="font-mono text-xs text-slate-600 uppercase tracking-widest mb-2">
-              Ghost Shop
+        {/* Bleibt / Resettet */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="card bg-green-950/10 border-green-900/30 p-3">
+            <div className="font-mono text-[10px] text-green-500 uppercase tracking-widest mb-1.5">
+              ✓ Bleibt erhalten
             </div>
-            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-              {PRESTIGE_UPGRADES.map(u => {
-                const bought = purchasedPrestigeUpgrades[u.id] ?? 0
-                const maxed = bought >= u.maxPurchases
-                const canAfford = ghostCredits >= u.cost && !maxed
-                return (
-                  <button
-                    key={u.id}
-                    onClick={() => { if (buyPrestigeUpgrade(u.id)) playSound('upgrade') }}
-                    disabled={!canAfford}
-                    className={`
-                      w-full text-left rounded p-2.5 border transition-all duration-150
-                      ${maxed
-                        ? 'border-purple-900/20 bg-purple-950/10 opacity-40 cursor-default'
-                        : canAfford
-                          ? 'border-purple-700/40 bg-purple-950/10 hover:border-purple-500/50 hover:bg-purple-950/20 cursor-pointer'
-                          : 'border-slate-800/40 bg-[#080810] opacity-40 cursor-not-allowed'
-                      }
-                    `}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm text-slate-200">{u.name}</span>
-                          {u.maxPurchases > 1 && (
-                            <span className="font-mono text-xs text-slate-600">
-                              {bought}/{u.maxPurchases}
-                            </span>
-                          )}
-                          {maxed && (
-                            <span className="font-mono text-[10px] text-green-500">MAXED</span>
-                          )}
-                        </div>
-                        <div className="font-mono text-xs text-purple-400/70">{u.description}</div>
-                        <div className="font-mono text-[10px] text-slate-600 italic">"{u.flavor}"</div>
-                      </div>
-                      <div className="font-mono text-sm neon-purple shrink-0">{u.cost} gc</div>
-                    </div>
-                  </button>
-                )
-              })}
+            <ul className="font-mono text-[11px] text-slate-400 space-y-1">
+              <li>Ghost Credits</li>
+              <li>Ghost-Shop-Boni</li>
+              <li>Achievements</li>
+              <li>Klicks &amp; Combo-Rekord</li>
+            </ul>
+          </div>
+          <div className="card bg-red-950/10 border-red-900/30 p-3">
+            <div className="font-mono text-[10px] text-red-500/80 uppercase tracking-widest mb-1.5">
+              ↺ Wird zurückgesetzt
+            </div>
+            <ul className="font-mono text-[11px] text-slate-400 space-y-1">
+              <li>Bits-Stand</li>
+              <li>Producer</li>
+              <li>Normale Upgrades</li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Next run preview */}
+        {hasCarryOverBonus && (
+          <div className="card bg-cyan-950/10 border-cyan-900/30 p-3">
+            <div className="font-mono text-[10px] text-cyan-500 uppercase tracking-widest mb-1.5">
+              Dein nächster Run startet mit
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-slate-300">
+              {nextGlobalMult > 1.001 && <span>Globaler Bonus <span className="text-cyan-400">×{nextGlobalMult.toFixed(2)}</span></span>}
+              {nextClickMult > 1.001 && <span>Klick-Bonus <span className="text-cyan-400">×{nextClickMult.toFixed(2)}</span></span>}
+              {nextStartBits > 0 && <span>Start-Bits <span className="text-cyan-400">{formatBits(nextStartBits)}</span></span>}
             </div>
           </div>
         )}
 
+        {/* Nudge to spend GC */}
+        {Math.floor(ghostCreditsAfter) > 0 && (
+          <button
+            onClick={onOpenGhostShop}
+            className="w-full font-mono text-xs px-3 py-2 rounded border border-purple-800/40 text-purple-300/80 bg-purple-950/10 hover:bg-purple-950/20 hover:border-purple-600/50 transition-all text-left"
+          >
+            👻 {Math.floor(ghostCreditsAfter)} gc im Ghost Shop ausgeben →
+          </button>
+        )}
+
         {/* Actions */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-1">
           <button
             onClick={onClose}
             className="flex-1 font-mono text-sm py-2 rounded border border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200 transition-all"
@@ -119,7 +126,7 @@ export function PrestigeModal({ onClose }: Props) {
             onClick={handlePrestige}
             className="flex-1 font-mono text-sm py-2 rounded border border-purple-600 text-purple-300 bg-purple-900/20 hover:bg-purple-900/40 hover:border-purple-400 transition-all font-semibold"
           >
-            &gt; go dark ({willEarn} gc)
+            Neu starten
           </button>
         </div>
       </div>

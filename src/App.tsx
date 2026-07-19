@@ -10,6 +10,7 @@ import { ClickArea } from './components/ClickArea'
 import { ProducerList } from './components/ProducerList'
 import { UpgradePanel } from './components/UpgradePanel'
 import { PrestigeModal } from './components/PrestigeModal'
+import { GhostShopModal } from './components/GhostShopModal'
 import { OfflineModal } from './components/OfflineModal'
 import { NameModal } from './components/NameModal'
 import { Leaderboard, type LeaderboardEntry } from './components/Leaderboard'
@@ -39,6 +40,7 @@ export default function App() {
   const [mobileTab, setMobileTab] = useState<MobileTab>('run')
   const [desktopTab, setDesktopTab] = useState<DesktopTab>('shop')
   const [showPrestige, setShowPrestige] = useState(false)
+  const [showGhostShop, setShowGhostShop] = useState(false)
   const [showNameModal, setShowNameModal] = useState(false)
   const [offlineResult, setOfflineResult] = useState<{ result: OfflineResult; state: GameState } | null>(null)
   const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([])
@@ -162,7 +164,7 @@ export default function App() {
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center overflow-y-auto relative">
           {/* subtle scanline bg, intensifies with progress tier */}
           <div className="scanline pointer-events-none absolute inset-0 transition-opacity duration-1000" style={{ opacity: scanlineOpacity }} />
-          <ClickArea onPrestigeClick={() => setShowPrestige(true)} />
+          <ClickArea onPrestigeClick={() => setShowPrestige(true)} onGhostShopClick={() => setShowGhostShop(true)} />
         </div>
 
         {/* Right: Tabbed management panel */}
@@ -220,7 +222,7 @@ export default function App() {
       {/* Mobile Layout */}
       <div className="md:hidden flex-1 min-h-0 overflow-hidden flex flex-col">
         <div className="flex-1 min-h-0 overflow-y-auto pb-16">
-          {mobileTab === 'run' && <ClickArea onPrestigeClick={() => setShowPrestige(true)} />}
+          {mobileTab === 'run' && <ClickArea onPrestigeClick={() => setShowPrestige(true)} onGhostShopClick={() => setShowGhostShop(true)} />}
           {mobileTab === 'shop' && <ProducerList />}
           {mobileTab === 'upgrades' && <UpgradePanel />}
           {mobileTab === 'rank' && (
@@ -271,7 +273,13 @@ export default function App() {
           onExpire={() => setActiveEvent(null)}
         />
       )}
-      {showPrestige && <PrestigeModal onClose={() => setShowPrestige(false)} />}
+      {showPrestige && (
+        <PrestigeModal
+          onClose={() => setShowPrestige(false)}
+          onOpenGhostShop={() => { setShowPrestige(false); setShowGhostShop(true) }}
+        />
+      )}
+      {showGhostShop && <GhostShopModal onClose={() => setShowGhostShop(false)} />}
       {showNameModal && <NameModal onClose={() => setShowNameModal(false)} />}
       {offlineResult && (
         <OfflineModal
