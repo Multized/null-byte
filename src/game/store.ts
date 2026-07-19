@@ -9,6 +9,7 @@ import {
   getStartBits,
   isUpgradeUnlocked,
   hasAutoBuy,
+  prestigeUpgradeCost,
 } from './utils'
 import { UPGRADES, PRESTIGE_UPGRADES, PRESTIGE_UNLOCK_BITS, MILESTONE_THRESHOLDS, PRODUCERS } from './constants'
 import { findNewlyUnlocked } from './achievements'
@@ -303,14 +304,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!upgrade) return false
     const timesBought = state.purchasedPrestigeUpgrades[id] ?? 0
     if (timesBought >= upgrade.maxPurchases) return false
-    if (state.ghostCredits < upgrade.cost) return false
+    const cost = prestigeUpgradeCost(upgrade, timesBought)
+    if (state.ghostCredits < cost) return false
     set(s => {
       const purchasedPrestigeUpgrades = {
         ...s.purchasedPrestigeUpgrades,
         [id]: timesBought + 1,
       }
       const next: Partial<GameState> = {
-        ghostCredits: s.ghostCredits - upgrade.cost,
+        ghostCredits: s.ghostCredits - cost,
         purchasedPrestigeUpgrades,
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }

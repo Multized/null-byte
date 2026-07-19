@@ -1,4 +1,4 @@
-import type { GameState } from './types'
+import type { GameState, PrestigeUpgradeDef } from './types'
 import { PRODUCERS, UPGRADES, PRESTIGE_UPGRADES, COST_SCALING, DEFAULT_OFFLINE_CAP_HOURS, MILESTONE_THRESHOLDS } from './constants'
 import { calcAchievementMultiplier } from './achievements'
 import { artifactGlobalMultiplier, artifactOfflineBonus } from './quests'
@@ -113,6 +113,8 @@ export function calcGlobalMultiplier(state: GameState): number {
   }
   mult *= calcAchievementMultiplier(state)
   mult *= artifactGlobalMultiplier(state)
+  // Inherent per-prestige bonus — every prestige makes you directly stronger (linear, no runaway)
+  mult *= 1 + 0.2 * state.prestigeCount
   return mult
 }
 
@@ -140,15 +142,17 @@ export function calcBitsPerSecond(state: GameState): number {
 }
 
 export function calcBitsPerClick(state: GameState): number {
+  // bps already includes the global multiplier — apply only the click multipliers on top,
+  // otherwise global would be counted twice and clicks would scale with global².
   const bps = calcBitsPerSecond(state)
-  const base = Math.max(1, bps * 0.01)
-  const globalMult = calcGlobalMultiplier(state)
+  const base = Math.max(1, bps * 0.02)
   const clickMult = calcClickMultiplier(state)
-  return base * clickMult * globalMult
+  return base * clickMult
 }
 
 export function calcGhostCreditsFromBits(totalBitsEarned: number, state: GameState): number {
-  const base = Math.floor(Math.sqrt(totalBitsEarned / 1_000_000))
+  // Sub-linear (sqrt) so long play is rewarded without runaway; ×3 makes the first prestige feel meaningful.
+  const base = 3 * Math.sqrt(totalBitsEarned / 1_000_000)
   const ghostBonusUpgrade = PRESTIGE_UPGRADES.find(u => u.effect === 'ghost_bonus')
   let bonusMult = 1
   if (ghostBonusUpgrade) {
@@ -156,6 +160,12 @@ export function calcGhostCreditsFromBits(totalBitsEarned: number, state: GameSta
     bonusMult = 1 + ghostBonusUpgrade.value * times
   }
   return Math.floor(base * bonusMult)
+}
+
+/** Cost of the next level of a prestige upgrade, given how many are already owned. */
+export function prestigeUpgradeCost(def: PrestigeUpgradeDef, owned: number): number {
+  const growth = def.costGrowth ?? 1
+  return Math.ceil(def.cost * Math.pow(growth, owned))
 }
 
 export function calcOfflineEfficiency(state: GameState): number {

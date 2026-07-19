@@ -30,6 +30,8 @@ export interface PrestigeUpgradeDef {
   description: string
   flavor: string
   cost: number
+  /** Per-level cost multiplier; each already-owned level multiplies the price. Default 1 = flat. */
+  costGrowth?: number
   effect: 'global_multiplier' | 'click_multiplier' | 'start_bits' | 'ghost_bonus' | 'offline_efficiency' | 'auto_buy'
   value: number
   maxPurchases: number

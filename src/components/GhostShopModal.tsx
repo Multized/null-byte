@@ -1,5 +1,5 @@
 import { useGameStore } from '../game/store'
-import { formatBits } from '../game/utils'
+import { formatBits, prestigeUpgradeCost } from '../game/utils'
 import { PRESTIGE_UPGRADES } from '../game/constants'
 import { playSound } from '../game/sound'
 import type { PrestigeUpgradeDef } from '../game/types'
@@ -45,7 +45,8 @@ export function GhostShopModal({ onClose }: Props) {
   const renderRow = (u: PrestigeUpgradeDef) => {
     const bought = purchasedPrestigeUpgrades[u.id] ?? 0
     const maxed = bought >= u.maxPurchases
-    const canAfford = ghostCredits >= u.cost && !maxed
+    const nextCost = prestigeUpgradeCost(u, bought)
+    const canAfford = ghostCredits >= nextCost && !maxed
 
     // Once the autonomous agent is owned, show an on/off toggle instead of a dead MAXED row
     if (u.effect === 'auto_buy' && bought > 0) {
@@ -122,7 +123,7 @@ export function GhostShopModal({ onClose }: Props) {
             </div>
           </div>
           <div className="font-mono text-sm neon-purple shrink-0">
-            {maxed ? '' : `${u.cost} gc`}
+            {maxed ? '' : `${nextCost} gc`}
           </div>
         </div>
       </button>
