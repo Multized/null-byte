@@ -181,8 +181,8 @@ export function AccountPanel({ entries }: Props) {
               value={syncInput}
               onChange={e => setSyncInput(e.target.value.toUpperCase())}
               onKeyDown={e => e.key === 'Enter' && handleSyncImport()}
-              placeholder="XXX-XXX"
-              maxLength={9}
+              placeholder="XXXX-XXXX-XXXX"
+              maxLength={14}
               className="
                 flex-1 bg-[#0a0a12] border border-slate-700 rounded px-2 py-1.5
                 font-mono text-sm text-slate-200 placeholder:text-slate-600

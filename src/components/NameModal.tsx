@@ -112,8 +112,8 @@ export function NameModal({ onClose }: Props) {
             value={syncInput}
             onChange={e => setSyncInput(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === 'Enter' && handleSyncLoad()}
-            placeholder="XXX-XXX"
-            maxLength={9}
+            placeholder="XXXX-XXXX-XXXX"
+            maxLength={14}
             autoFocus
             className="
               w-full bg-[#0a0a12] border border-slate-700 rounded px-3 py-2

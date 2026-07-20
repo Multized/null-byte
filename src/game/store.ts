@@ -45,13 +45,19 @@ function randomAnonName(): string {
 }
 
 function generateSyncCode(): string {
+  // 12 chars over a 32-char alphabet (~1.15e18). The sync code is the only secret
+  // guarding a save, and the lookup RPC can be called freely, so the old 6-char code
+  // (~1.07e9) was within reach of a blind sweep once enough players existed.
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let code = ''
-  for (let i = 0; i < 6; i++) {
-    if (i === 3) code += '-'
-    code += chars[Math.floor(Math.random() * chars.length)]
+  const groups: string[] = []
+  for (let g = 0; g < 3; g++) {
+    let part = ''
+    for (let i = 0; i < 4; i++) {
+      part += chars[Math.floor(Math.random() * chars.length)]
+    }
+    groups.push(part)
   }
-  return code
+  return groups.join('-')
 }
 
 function randomTag(): string {
