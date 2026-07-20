@@ -39,12 +39,25 @@ export function AchievementToastQueue() {
   if (queue.length === 0) return null
 
   return (
-    <div className="fixed top-16 right-3 z-[60] flex flex-col gap-2 w-72 pointer-events-none">
+    // Anchored bottom-right and click-through. It used to sit top-right with
+    // pointer-events-auto, where it covered the EXECUTE button on mobile and the top of
+    // the producer list on desktop — and swallowed the clicks meant for them. On desktop
+    // it clears the 380px management panel so it sits in the empty gameplay area; on
+    // mobile it stacks above the onboarding hint, which every new player sees at the
+    // same moment their first achievement fires.
+    <div
+      className="
+        fixed z-[60] flex flex-col gap-2 w-72 max-w-[calc(100vw-1.5rem)]
+        bottom-44 right-3
+        md:bottom-4 md:right-[396px]
+        pointer-events-none
+      "
+    >
       {queue.map(({ id, event }) => (
         <div
           key={id}
           className={`
-            slide-in rounded border backdrop-blur-sm p-3 shadow-lg pointer-events-auto
+            slide-in rounded border backdrop-blur-sm p-3 shadow-lg
             ${event.kind === 'achievement'
               ? 'border-amber-600/50 bg-[#0d0a04]/95 shadow-[0_0_24px_rgba(251,191,36,0.1)]'
               : 'border-cyan-600/50 bg-[#040a0d]/95 shadow-[0_0_24px_rgba(0,245,255,0.1)]'
