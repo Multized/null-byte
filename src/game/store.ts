@@ -380,8 +380,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   recordCombo: (combo: number) => {
-    if (combo <= get().maxCombo) return
-    set({ maxCombo: combo })
+    const state = get()
+    const isNewRecord = combo > state.maxCombo
+    // Must run even when it is not a new lifetime record: active reach_combo contracts
+    // track their own best, otherwise they stall forever once maxCombo hits the cap.
+    const needsContractUpdate = state.activeContracts.some(
+      c => c.type === 'reach_combo' && combo > (c.bestCombo ?? 0)
+    )
+    if (!isNewRecord && !needsContractUpdate) return
+    set(s => ({
+      maxCombo: Math.max(s.maxCombo, combo),
+      activeContracts: needsContractUpdate
+        ? s.activeContracts.map(c =>
+            c.type === 'reach_combo' && combo > (c.bestCombo ?? 0)
+              ? { ...c, bestCombo: combo }
+              : c
+          )
+        : s.activeContracts,
+    }))
     get().checkAchievements()
   },
 

@@ -65,6 +65,12 @@ export interface ActiveContract {
   baseline: number
   reward: number
   rewardGc: number
+  /**
+   * Best combo reached while THIS contract was active. `reach_combo` needs its own
+   * counter because `maxCombo` is a lifetime high-water mark — once it sat at the cap,
+   * the usual `counter - baseline` progress was permanently 0.
+   */
+  bestCombo?: number
 }
 
 export interface GameState {

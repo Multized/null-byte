@@ -125,10 +125,15 @@ export function rollContract(state: GameState): ActiveContract {
     reward,
     // Ghost Credits come only from prestige — contracts pay in bits
     rewardGc: 0,
+    bestCombo: 0,
   }
 }
 
 export function contractProgress(contract: ActiveContract, state: GameState): number {
+  // reach_combo tracks its own per-contract best; see ActiveContract.bestCombo.
+  if (contract.type === 'reach_combo') {
+    return Math.max(0, Math.min(contract.target, contract.bestCombo ?? 0))
+  }
   const current = templateFor(contract.type).counter(state) - contract.baseline
   return Math.max(0, Math.min(contract.target, current))
 }
