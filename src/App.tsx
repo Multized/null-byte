@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { useGameStore } from './game/store'
 import { saveGame, loadGame, calcOfflineEarnings } from './game/save'
-import { submitScore } from './game/supabase'
+import { submitScore, isLegacySyncCode, rotateSyncCode } from './game/supabase'
+import { generateSyncCode } from './game/store'
 
 import type { OfflineResult } from './game/save'
 import type { GameState } from './game/types'
@@ -31,6 +32,20 @@ import { emitToast } from './game/toastBus'
 
 type MobileTab = 'run' | 'shop' | 'upgrades' | 'rank'
 type DesktopTab = 'shop' | 'mods' | 'agent'
+
+/**
+ * Upgrades a pre-lockdown 6-char sync code to the current 12-char one. The new code is
+ * only adopted locally once the server confirms the swap — otherwise the client would
+ * hold a code the stored row does not have and every later save would be rejected.
+ */
+async function upgradeLegacySyncCode(saved: GameState) {
+  if (!saved.syncCode || !isLegacySyncCode(saved.syncCode)) return
+  const fresh = generateSyncCode()
+  const ok = await rotateSyncCode(saved.playerId, saved.syncCode, fresh)
+  if (!ok) return
+  useGameStore.setState({ syncCode: fresh })
+  saveGame()
+}
 
 export default function App() {
   const tick = useGameStore(s => s.tick)
@@ -77,6 +92,7 @@ export default function App() {
       const offlineRes = calcOfflineEarnings(saved)
       loadState(saved)
       saveGame()
+      void upgradeLegacySyncCode(saved)
       setTimeout(() => submitScore(useGameStore.getState()), 500)
       if (offlineRes.earnings > 0) {
         useGameStore.setState(s => ({

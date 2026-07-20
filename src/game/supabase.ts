@@ -20,6 +20,30 @@ export interface LeaderboardEntry {
   active_title: string | null
 }
 
+/** True for the old 6-char sync codes, which are weak enough to be worth rotating. */
+export function isLegacySyncCode(code: string): boolean {
+  return code.replace(/[^A-Z0-9]/gi, '').length === 6
+}
+
+/**
+ * Swaps a legacy sync code for a fresh one. Returns true only when the server confirmed
+ * the swap (or has no row yet) — the caller must keep the old code otherwise, because
+ * adopting a code the stored row does not have would lock the player out of saving.
+ */
+export async function rotateSyncCode(
+  playerId: string,
+  oldCode: string,
+  newCode: string,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('nb_rotate_sync_code', {
+    p_player_id: playerId,
+    p_old_code: oldCode,
+    p_new_code: newCode,
+  })
+  if (error) return false
+  return data === true
+}
+
 /** Normalises user-typed sync codes to the stored format (XXX-XXX or XXXX-XXXX-XXXX). */
 export function normalizeSyncCode(code: string): string {
   const raw = code.toUpperCase().replace(/[^A-Z0-9]/g, '')
