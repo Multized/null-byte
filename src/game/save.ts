@@ -1,7 +1,12 @@
 import type { GameState } from './types'
-import { useGameStore, getSerializableState, generateSyncCode, randomTag } from './store'
+import { useGameStore, getSerializableState, generateSyncCode, randomTag, defaultGameState } from './store'
 import { calcBitsPerSecond, getOfflineCapHours, calcOfflineEfficiency } from './utils'
-import { SAVE_KEY, GC_CAP_BASE, GC_CAP_PER_PRESTIGE } from './constants'
+import { SAVE_KEY, SAVE_EPOCH, GC_CAP_BASE, GC_CAP_PER_PRESTIGE } from './constants'
+
+/** True when this save predates the current epoch and its progress must be wiped. */
+export function isStaleEpoch(data: Pick<GameState, 'saveEpoch'>): boolean {
+  return (data.saveEpoch ?? 1) < SAVE_EPOCH
+}
 
 /**
  * Ghost Credits used to be uncapped and grew geometrically — old saves can hold millions,
@@ -32,7 +37,22 @@ export function loadGame(): GameState | null {
     const data = JSON.parse(raw) as GameState
     // Sanity checks
     if (typeof data.bits !== 'number') return null
+
+    // Epoch reset: wipe progress but keep who the player is, so their leaderboard row
+    // gets overwritten with the fresh run instead of lingering as a stale entry.
+    if (isStaleEpoch(data)) {
+      return {
+        ...defaultGameState(),
+        saveEpoch: SAVE_EPOCH,
+        playerId: data.playerId || crypto.randomUUID(),
+        playerName: data.playerName ?? '',
+        playerTag: data.playerTag || randomTag(),
+        syncCode: data.syncCode || generateSyncCode(),
+      }
+    }
+
     return {
+      saveEpoch: SAVE_EPOCH,
       bits: data.bits ?? 0,
       totalBitsEarned: data.totalBitsEarned ?? 0,
       ghostCredits: clampLegacyGhostCredits(data.ghostCredits ?? 0, data.prestigeCount ?? 0),
@@ -109,6 +129,8 @@ export function importSave(encoded: string): boolean {
     const raw = atob(encoded)
     const data = JSON.parse(raw) as GameState
     if (typeof data.bits !== 'number') return false
+    // Don't let a pre-epoch export smuggle old progress back in
+    if (isStaleEpoch(data)) return false
     useGameStore.getState().loadState(data)
     saveGame()
     return true

@@ -14,7 +14,7 @@ import {
   hasAutoBuy,
   prestigeUpgradeCost,
 } from './utils'
-import { UPGRADES, PRESTIGE_UPGRADES, MILESTONE_THRESHOLDS, PRODUCERS } from './constants'
+import { UPGRADES, PRESTIGE_UPGRADES, MILESTONE_THRESHOLDS, PRODUCERS, SAVE_EPOCH } from './constants'
 import { findNewlyUnlocked } from './achievements'
 import { rollContract, isContractComplete } from './contracts'
 import { nextAvailableQuest, questById, isStepComplete, artifactContractSlots } from './quests'
@@ -60,6 +60,7 @@ function randomTag(): string {
 
 function defaultState(): GameState {
   return {
+    saveEpoch: SAVE_EPOCH,
     bits: 0,
     totalBitsEarned: 0,
     ghostCredits: 0,
@@ -574,6 +575,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 export function getSerializableState(): GameState {
   const s = useGameStore.getState()
   return {
+    saveEpoch: SAVE_EPOCH,
     bits: s.bits,
     totalBitsEarned: s.totalBitsEarned,
     ghostCredits: s.ghostCredits,
@@ -613,3 +615,5 @@ export function getSerializableState(): GameState {
 }
 
 export { randomAnonName, randomTag, generateSyncCode }
+/** A pristine GameState — used by the epoch reset in save.ts. */
+export const defaultGameState = defaultState

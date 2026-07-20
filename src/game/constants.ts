@@ -4,6 +4,13 @@ export const COST_SCALING = 1.15
 /** Each level of `ghost_cost_scaling` shaves this off COST_SCALING. */
 export const COST_SCALING_REDUCTION_PER_LEVEL = 0.005
 export const SAVE_KEY = 'nullbyte_save'
+/**
+ * Bump to force every player onto a fresh run. Saves carrying a lower epoch have their
+ * progress wiped on load (identity is kept). Needed because the save lives in
+ * localStorage — clearing the leaderboard table alone resets nobody, since each client
+ * just re-uploads its untouched local save.
+ */
+export const SAVE_EPOCH = 2
 export const DEFAULT_OFFLINE_CAP_HOURS = 6
 export const MILESTONE_THRESHOLDS = [10, 25, 50, 100, 200, 400]
 export const MILESTONE_FACTOR = 1.8

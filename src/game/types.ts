@@ -74,6 +74,8 @@ export interface ActiveContract {
 }
 
 export interface GameState {
+  /** Progress-reset marker; see SAVE_EPOCH. Absent on saves written before it existed. */
+  saveEpoch?: number
   bits: number
   totalBitsEarned: number
   ghostCredits: number
