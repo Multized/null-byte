@@ -1,7 +1,19 @@
 import type { GameState } from './types'
 import { useGameStore, getSerializableState, generateSyncCode, randomTag } from './store'
 import { calcBitsPerSecond, getOfflineCapHours, calcOfflineEfficiency } from './utils'
-import { SAVE_KEY } from './constants'
+import { SAVE_KEY, GC_CAP_BASE, GC_CAP_PER_PRESTIGE } from './constants'
+
+/**
+ * Ghost Credits used to be uncapped and grew geometrically — old saves can hold millions,
+ * which would buy out the entire rebalanced shop instantly. Clamp them to what the same
+ * number of prestiges would earn under the current cap (the sum of every per-prestige cap
+ * up to `prestigeCount`), so old progress still counts without skipping the new economy.
+ */
+function clampLegacyGhostCredits(ghostCredits: number, prestigeCount: number): number {
+  const p = Math.max(0, prestigeCount)
+  const maxEarnable = p * GC_CAP_BASE + GC_CAP_PER_PRESTIGE * (p * (p - 1)) / 2
+  return Math.min(ghostCredits, maxEarnable)
+}
 
 export function saveGame(): void {
   try {
@@ -23,7 +35,7 @@ export function loadGame(): GameState | null {
     return {
       bits: data.bits ?? 0,
       totalBitsEarned: data.totalBitsEarned ?? 0,
-      ghostCredits: data.ghostCredits ?? 0,
+      ghostCredits: clampLegacyGhostCredits(data.ghostCredits ?? 0, data.prestigeCount ?? 0),
       totalGhostCreditsEarned: data.totalGhostCreditsEarned ?? 0,
       producers: data.producers ?? {},
       purchasedUpgrades: data.purchasedUpgrades ?? [],

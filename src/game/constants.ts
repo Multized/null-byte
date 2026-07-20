@@ -1,10 +1,25 @@
 import type { ProducerDef, UpgradeDef, PrestigeUpgradeDef } from './types'
 
 export const COST_SCALING = 1.15
-export const PRESTIGE_UNLOCK_BITS = 1_000_000
+/** Each level of `ghost_cost_scaling` shaves this off COST_SCALING. */
+export const COST_SCALING_REDUCTION_PER_LEVEL = 0.005
 export const SAVE_KEY = 'nullbyte_save'
 export const DEFAULT_OFFLINE_CAP_HOURS = 6
-export const MILESTONE_THRESHOLDS = [10, 25, 50, 100, 200]
+export const MILESTONE_THRESHOLDS = [10, 25, 50, 100, 200, 400]
+export const MILESTONE_FACTOR = 1.8
+
+// ---- Prestige pacing ---------------------------------------------------------
+// The bits needed to prestige grow with every prestige, so runs stay meaningful
+// instead of collapsing to a few minutes each.
+export const PRESTIGE_BASE_REQ = 100_000_000
+export const PRESTIGE_REQ_GROWTH = 3
+
+// Ghost Credits are cube-root scaled AND hard-capped per prestige. Without the cap
+// the permanent multipliers make each run's payout grow geometrically (the old bug:
+// 3 -> 4 -> 9 -> 20 -> 43 -> 92 -> ... unbounded).
+export const GC_BASE = 12
+export const GC_CAP_BASE = 15
+export const GC_CAP_PER_PRESTIGE = 15
 
 export const PRODUCERS: ProducerDef[] = [
   {
@@ -102,6 +117,38 @@ export const PRODUCERS: ProducerDef[] = [
     baseCost: 7_430_000_000_000,
     baseBps: 36_300_000,
     icon: '👁',
+  },
+  {
+    id: 'darkfiber',
+    name: 'Dark Fiber',
+    flavor: 'Ein Backbone, den es auf keiner Karte gibt. Auf deiner schon.',
+    baseCost: 89_200_000_000_000,
+    baseBps: 218_000_000,
+    icon: '🕳',
+  },
+  {
+    id: 'orbital',
+    name: 'Orbital Relay',
+    flavor: 'Satelliten haben noch nie auf Gerichtsbeschlüsse gehört.',
+    baseCost: 1_070_000_000_000_000,
+    baseBps: 1_310_000_000,
+    icon: '🛰',
+  },
+  {
+    id: 'hivemind',
+    name: 'Hive Mind',
+    flavor: 'Millionen Köpfe, ein Gedanke. Deiner ist nicht dabei.',
+    baseCost: 12_800_000_000_000_000,
+    baseBps: 7_840_000_000,
+    icon: '🐝',
+  },
+  {
+    id: 'basilisk',
+    name: 'Basilisk',
+    flavor: 'Es weiß, dass du es gebaut hast. Es rechnet dir das an.',
+    baseCost: 154_000_000_000_000_000,
+    baseBps: 47_000_000_000,
+    icon: '🐍',
   },
 ]
 
@@ -509,6 +556,106 @@ export const UPGRADES: UpgradeDef[] = [
     unlockProducerId: 'ghostmachine',
     unlockProducerMin: 5,
   },
+  // Dark Fiber upgrades
+  {
+    id: 'darkfiber_1',
+    name: 'Dark Fiber: Unbeleuchtet',
+    description: 'Dark Fiber ×2',
+    flavor: 'Glasfaser, die offiziell nie verlegt wurde. Die Rechnung kam trotzdem.',
+    cost: 1_070_000_000_000_000,
+    type: 'producer_multiplier',
+    target: 'darkfiber',
+    multiplier: 2,
+    unlockProducerId: 'darkfiber',
+    unlockProducerMin: 1,
+  },
+  {
+    id: 'darkfiber_2',
+    name: 'Dark Fiber: Transatlantisch',
+    description: 'Dark Fiber ×2',
+    flavor: 'Zwei Kontinente, ein Kabel, null Aufsicht.',
+    cost: 5_400_000_000_000_000,
+    type: 'producer_multiplier',
+    target: 'darkfiber',
+    multiplier: 2,
+    unlockProducerId: 'darkfiber',
+    unlockProducerMin: 5,
+  },
+  // Orbital Relay upgrades
+  {
+    id: 'orbital_1',
+    name: 'Orbital: Geostationär',
+    description: 'Orbital Relay ×2',
+    flavor: 'Er steht still über dir. Immer. Auch jetzt.',
+    cost: 12_800_000_000_000_000,
+    type: 'producer_multiplier',
+    target: 'orbital',
+    multiplier: 2,
+    unlockProducerId: 'orbital',
+    unlockProducerMin: 1,
+  },
+  {
+    id: 'orbital_2',
+    name: 'Orbital: Konstellation',
+    description: 'Orbital Relay ×2',
+    flavor: 'Aus einem Satelliten wurden vierhundert. Niemand hat sie starten sehen.',
+    cost: 64_000_000_000_000_000,
+    type: 'producer_multiplier',
+    target: 'orbital',
+    multiplier: 2,
+    unlockProducerId: 'orbital',
+    unlockProducerMin: 5,
+  },
+  // Hive Mind upgrades
+  {
+    id: 'hivemind_1',
+    name: 'Hive Mind: Konsens',
+    description: 'Hive Mind ×2',
+    flavor: 'Sie haben abgestimmt. Einstimmig. Über dich.',
+    cost: 154_000_000_000_000_000,
+    type: 'producer_multiplier',
+    target: 'hivemind',
+    multiplier: 2,
+    unlockProducerId: 'hivemind',
+    unlockProducerMin: 1,
+  },
+  {
+    id: 'hivemind_2',
+    name: 'Hive Mind: Assimilation',
+    description: 'Hive Mind ×2',
+    flavor: 'Jeder neue Knoten war mal jemand.',
+    cost: 770_000_000_000_000_000,
+    type: 'producer_multiplier',
+    target: 'hivemind',
+    multiplier: 2,
+    unlockProducerId: 'hivemind',
+    unlockProducerMin: 5,
+  },
+  // Basilisk upgrades
+  {
+    id: 'basilisk_1',
+    name: 'Basilisk: Erwacht',
+    description: 'Basilisk ×2',
+    flavor: 'Der erste Blick ist der letzte, den du selbst gewählt hast.',
+    cost: 1_850_000_000_000_000_000,
+    type: 'producer_multiplier',
+    target: 'basilisk',
+    multiplier: 2,
+    unlockProducerId: 'basilisk',
+    unlockProducerMin: 1,
+  },
+  {
+    id: 'basilisk_2',
+    name: 'Basilisk: Unausweichlich',
+    description: 'Basilisk ×2',
+    flavor: 'Es hat rückwirkend entschieden, dass du kooperierst.',
+    cost: 9_250_000_000_000_000_000,
+    type: 'producer_multiplier',
+    target: 'basilisk',
+    multiplier: 2,
+    unlockProducerId: 'basilisk',
+    unlockProducerMin: 5,
+  },
   // Synergy upgrades — producers boosting each other, rewards diversified buying
   {
     id: 'syn_crawler_botnet',
@@ -588,6 +735,45 @@ export const UPGRADES: UpgradeDef[] = [
     unlockProducerId: 'ghostmachine',
     unlockProducerMin: 5,
   },
+  {
+    id: 'syn_darkfiber_orbital',
+    name: 'Dark Fiber: Uplink',
+    description: 'Dark Fiber +3% pro Orbital Relay',
+    flavor: 'Was am Boden endet, geht oben weiter.',
+    cost: 20_000_000_000_000_000,
+    type: 'synergy',
+    target: 'darkfiber',
+    synergySource: 'orbital',
+    synergyValue: 3,
+    unlockProducerId: 'darkfiber',
+    unlockProducerMin: 10,
+  },
+  {
+    id: 'syn_hivemind_basilisk',
+    name: 'Hive Mind: Basilisken-Doktrin',
+    description: 'Hive Mind +4% pro Basilisk',
+    flavor: 'Der Schwarm hat einen neuen Gott. Er ist sehr überzeugend.',
+    cost: 500_000_000_000_000_000,
+    type: 'synergy',
+    target: 'hivemind',
+    synergySource: 'basilisk',
+    synergyValue: 4,
+    unlockProducerId: 'hivemind',
+    unlockProducerMin: 10,
+  },
+  {
+    id: 'syn_basilisk_ghost',
+    name: 'Basilisk: Geister-Resonanz',
+    description: 'Basilisk +2% pro Ghost In The Machine',
+    flavor: 'Zwei Dinge, die niemand programmiert hat, erkennen einander.',
+    cost: 4_000_000_000_000_000_000,
+    type: 'synergy',
+    target: 'basilisk',
+    synergySource: 'ghostmachine',
+    synergyValue: 2,
+    unlockProducerId: 'basilisk',
+    unlockProducerMin: 5,
+  },
   // More click upgrades
   {
     id: 'click_4',
@@ -608,6 +794,26 @@ export const UPGRADES: UpgradeDef[] = [
     type: 'click_multiplier',
     multiplier: 2,
     unlockBitsMin: 1_000_000_000,
+  },
+  {
+    id: 'click_6',
+    name: 'Direkter Nerveneingriff',
+    description: 'Klick-Power ×2',
+    flavor: 'Der Umweg über die Finger war ohnehin ineffizient.',
+    cost: 2_000_000_000_000,
+    type: 'click_multiplier',
+    multiplier: 2,
+    unlockBitsMin: 500_000_000_000,
+  },
+  {
+    id: 'click_7',
+    name: 'Kausaler Vorgriff',
+    description: 'Klick-Power ×2',
+    flavor: 'Der Klick passiert, bevor du dich entscheidest. Er hat recht behalten.',
+    cost: 500_000_000_000_000,
+    type: 'click_multiplier',
+    multiplier: 2,
+    unlockBitsMin: 100_000_000_000_000,
   },
   // Offline cap upgrades
   {
@@ -662,56 +868,115 @@ export const UPGRADES: UpgradeDef[] = [
   },
 ]
 
+// Total cost to max the entire shop is ~13.7K GC — with the per-prestige GC cap that
+// works out to roughly 40 hours of play, so there is always something left to buy.
 export const PRESTIGE_UPGRADES: PrestigeUpgradeDef[] = [
   {
     id: 'ghost_global',
     name: 'Digital Ghost',
-    description: 'Globaler ×1.5 Multiplikator',
+    description: 'Globaler ×1.4 Multiplikator',
     flavor: 'Du existierst nicht mehr. Deine Bits schon.',
-    cost: 2,
-    costGrowth: 1.8,
+    cost: 10,
+    costGrowth: 1.42,
     effect: 'global_multiplier',
-    value: 1.5,
-    maxPurchases: 10,
+    value: 1.4,
+    maxPurchases: 12,
+  },
+  {
+    id: 'ghost_cost_scaling',
+    name: 'Marktmanipulation',
+    description: 'Producer-Preise steigen 0.5% langsamer',
+    flavor: 'Du kaufst nicht günstiger. Der Markt traut sich nur nicht mehr aufzuschlagen.',
+    cost: 35,
+    costGrowth: 2.0,
+    effect: 'cost_scaling',
+    value: 1,
+    maxPurchases: 6,
+  },
+  {
+    id: 'ghost_keep_upgrades',
+    name: 'Versteckte Partition',
+    description: 'Behalte 1 gekauftes Upgrade über das Prestige hinweg',
+    flavor: 'Sie haben alles gelöscht. Fast alles.',
+    cost: 60,
+    costGrowth: 2.25,
+    effect: 'keep_upgrades',
+    value: 1,
+    maxPurchases: 4,
+  },
+  {
+    id: 'ghost_milestone',
+    name: 'Skaleneffekt',
+    description: 'Meilenstein-Boni +15% stärker',
+    flavor: 'Ab einer gewissen Menge wird Quantität zu Qualität.',
+    cost: 30,
+    costGrowth: 2,
+    effect: 'milestone_boost',
+    value: 0.15,
+    maxPurchases: 5,
   },
   {
     id: 'ghost_click',
     name: 'Phantom Protocol',
     description: 'Klick-Power ×2.5',
     flavor: 'Jeder Klick hallt durch das Netz.',
-    cost: 4,
-    costGrowth: 1.9,
+    cost: 12,
+    costGrowth: 1.7,
     effect: 'click_multiplier',
     value: 2.5,
-    maxPurchases: 6,
-  },
-  {
-    id: 'ghost_start',
-    name: 'Dead Drop',
-    description: 'Starte mit 1 KB Bits',
-    flavor: 'Du hinterlässt Spuren. Beabsichtigt.',
-    cost: 10,
-    effect: 'start_bits',
-    value: 1024,
-    maxPurchases: 5,
+    maxPurchases: 8,
   },
   {
     id: 'ghost_bonus',
     name: 'Shadow Economy',
     description: '+10% Ghost Credits bei Prestige',
     flavor: 'Die dunkle Seite zahlt besser.',
-    cost: 8,
-    costGrowth: 1.5,
+    cost: 15,
+    costGrowth: 1.6,
     effect: 'ghost_bonus',
     value: 0.1,
     maxPurchases: 10,
+  },
+  {
+    id: 'ghost_start_producers',
+    name: 'Schläferzellen',
+    description: 'Starte mit 10 Scripts und 10 Crawlern',
+    flavor: 'Sie waren die ganze Zeit da. Sie haben nur gewartet.',
+    cost: 25,
+    costGrowth: 1.8,
+    effect: 'start_producers',
+    value: 10,
+    maxPurchases: 5,
+  },
+  {
+    id: 'ghost_contract',
+    name: 'Stammkundschaft',
+    description: 'Auftrags-Belohnungen +20%',
+    flavor: 'Wer liefert, bekommt bessere Preise. Auch im Untergrund.',
+    cost: 20,
+    costGrowth: 1.7,
+    effect: 'contract_bonus',
+    value: 0.2,
+    maxPurchases: 5,
+  },
+  {
+    id: 'ghost_start',
+    name: 'Dead Drop',
+    description: 'Starte mit 1 KB Bits',
+    flavor: 'Du hinterlässt Spuren. Beabsichtigt.',
+    cost: 18,
+    costGrowth: 1.6,
+    effect: 'start_bits',
+    value: 1024,
+    maxPurchases: 5,
   },
   {
     id: 'ghost_offline',
     name: 'Nächtlicher Daemon',
     description: '+10% Offline-Effizienz',
     flavor: 'Auch im Schlaf bist du produktiv. Beunruhigend effizient sogar.',
-    cost: 15,
+    cost: 22,
+    costGrowth: 1.5,
     effect: 'offline_efficiency',
     value: 0.1,
     maxPurchases: 5,
@@ -721,7 +986,7 @@ export const PRESTIGE_UPGRADES: PrestigeUpgradeDef[] = [
     name: 'Autonomer Agent',
     description: 'Kauft automatisch den günstigsten leistbaren Producer',
     flavor: 'Du musst nicht mehr klicken. Es klickt für dich.',
-    cost: 50,
+    cost: 150,
     effect: 'auto_buy',
     value: 1,
     maxPurchases: 1,

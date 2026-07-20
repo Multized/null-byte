@@ -32,7 +32,18 @@ export interface PrestigeUpgradeDef {
   cost: number
   /** Per-level cost multiplier; each already-owned level multiplies the price. Default 1 = flat. */
   costGrowth?: number
-  effect: 'global_multiplier' | 'click_multiplier' | 'start_bits' | 'ghost_bonus' | 'offline_efficiency' | 'auto_buy'
+  effect:
+    | 'global_multiplier'
+    | 'click_multiplier'
+    | 'start_bits'
+    | 'ghost_bonus'
+    | 'offline_efficiency'
+    | 'auto_buy'
+    | 'cost_scaling'
+    | 'keep_upgrades'
+    | 'milestone_boost'
+    | 'start_producers'
+    | 'contract_bonus'
   value: number
   maxPurchases: number
 }

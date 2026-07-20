@@ -5,7 +5,12 @@ import {
   calcGlobalMultiplier,
   calcClickMultiplier,
   getStartBits,
+  getStartProducers,
+  keptUpgradeCount,
+  ghostCreditCap,
+  prestigeRequirement,
 } from '../game/utils'
+import { PRESTIGE_UPGRADES } from '../game/constants'
 import { playSound } from '../game/sound'
 import type { GameState } from '../game/types'
 
@@ -21,14 +26,32 @@ export function PrestigeModal({ onClose, onOpenGhostShop }: Props) {
   const willEarn = calcGhostCreditsFromBits(state.totalBitsEarned, state)
   const ghostCreditsAfter = state.ghostCredits + willEarn
 
+  // Ghost Credits are capped per prestige — surface it, otherwise "more bits gave me
+  // nothing extra" looks like a bug rather than the intended ceiling.
+  const bonusDef = PRESTIGE_UPGRADES.find(u => u.effect === 'ghost_bonus')
+  const bonusMult = 1 + (bonusDef?.value ?? 0) * (state.purchasedPrestigeUpgrades[bonusDef?.id ?? ''] ?? 0)
+  const cap = Math.floor(ghostCreditCap(state) * bonusMult)
+  const atCap = willEarn >= cap
+
   // Project the state right after prestige to preview what the next run starts with —
-  // purchased Ghost Shop upgrades persist across resets, producers/upgrades do not.
-  const projected: GameState = { ...state, producers: {}, purchasedUpgrades: [] }
+  // Ghost Shop upgrades persist, and some of them carry producers/upgrades over too.
+  const keptCount = keptUpgradeCount(state)
+  const startProducers = getStartProducers(state)
+  const projected: GameState = {
+    ...state,
+    prestigeCount: state.prestigeCount + 1,
+    producers: startProducers,
+    purchasedUpgrades: [],
+  }
   const nextGlobalMult = calcGlobalMultiplier(projected)
   const nextClickMult = calcClickMultiplier(projected)
   const nextStartBits = getStartBits(projected)
+  const nextReq = prestigeRequirement(projected)
+  const startProducerCount = Object.values(startProducers).reduce((a, b) => a + b, 0)
 
-  const hasCarryOverBonus = nextGlobalMult > 1.01 || nextClickMult > 1.01 || nextStartBits > 0
+  const hasCarryOverBonus =
+    nextGlobalMult > 1.01 || nextClickMult > 1.01 || nextStartBits > 0 ||
+    startProducerCount > 0 || keptCount > 0
 
   const handlePrestige = () => {
     prestige()
@@ -62,6 +85,11 @@ export function PrestigeModal({ onClose, onOpenGhostShop }: Props) {
           </div>
           <div className="font-mono text-[10px] text-slate-600 mt-1">
             {Math.floor(state.ghostCredits)} → {Math.floor(ghostCreditsAfter)} gc gesamt
+          </div>
+          <div className={`font-mono text-[10px] mt-1.5 ${atCap ? 'text-amber-500/80' : 'text-slate-600'}`}>
+            {atCap
+              ? `Maximum für dieses Prestige erreicht (${cap} gc)`
+              : `Maximum für dieses Prestige: ${cap} gc`}
           </div>
         </div>
 
@@ -100,6 +128,11 @@ export function PrestigeModal({ onClose, onOpenGhostShop }: Props) {
               {nextGlobalMult > 1.01 && <span>Globaler Bonus <span className="text-cyan-400">×{nextGlobalMult.toFixed(2)}</span></span>}
               {nextClickMult > 1.01 && <span>Klick-Bonus <span className="text-cyan-400">×{nextClickMult.toFixed(2)}</span></span>}
               {nextStartBits > 0 && <span>Start-Bits <span className="text-cyan-400">{formatBits(nextStartBits)}</span></span>}
+              {startProducerCount > 0 && <span>Start-Producer <span className="text-cyan-400">{startProducerCount}</span></span>}
+              {keptCount > 0 && <span>Behaltene Upgrades <span className="text-cyan-400">{keptCount}</span></span>}
+            </div>
+            <div className="font-mono text-[10px] text-slate-600 mt-2">
+              Nächstes Prestige ab {formatBits(nextReq)} verdienten Bits
             </div>
           </div>
         )}

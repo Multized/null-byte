@@ -6,6 +6,7 @@ import {
   calcProducerMultiplier,
   calcBulkProducerCost,
   calcMaxAffordable,
+  calcMilestoneMultiplier,
   nextMilestone,
 } from '../game/utils'
 import { PRODUCERS, MILESTONE_THRESHOLDS } from '../game/constants'
@@ -69,9 +70,9 @@ export function ProducerList() {
       </div>
       {PRODUCERS.map(def => {
         const owned = producers[def.id] ?? 0
-        const qty = buyQty === 'max' ? calcMaxAffordable(def.id, owned, bits) : buyQty
+        const qty = buyQty === 'max' ? calcMaxAffordable(def.id, owned, bits, state) : buyQty
         const effectiveQty = Math.max(1, qty)
-        const cost = calcBulkProducerCost(def.id, owned, effectiveQty)
+        const cost = calcBulkProducerCost(def.id, owned, effectiveQty, state)
         const canAfford = buyQty === 'max' ? qty > 0 : bits >= cost
         const mult = calcProducerMultiplier(def.id, state)
         const bpsEach = def.baseBps * mult
@@ -132,7 +133,7 @@ export function ProducerList() {
                       </span>
                     )}
                     {milestoneTier > 0 && (
-                      <span className="font-mono text-[9px] text-purple-400 shrink-0" title={`Meilenstein-Bonus ×${Math.pow(2, milestoneTier)}`}>
+                      <span className="font-mono text-[9px] text-purple-400 shrink-0" title={`Meilenstein-Bonus ×${calcMilestoneMultiplier(def.id, state).toFixed(1)}`}>
                         ✦{milestoneTier}
                       </span>
                     )}

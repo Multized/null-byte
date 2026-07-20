@@ -1,5 +1,19 @@
 import type { GameState, PrestigeUpgradeDef } from './types'
-import { PRODUCERS, UPGRADES, PRESTIGE_UPGRADES, COST_SCALING, DEFAULT_OFFLINE_CAP_HOURS, MILESTONE_THRESHOLDS } from './constants'
+import {
+  PRODUCERS,
+  UPGRADES,
+  PRESTIGE_UPGRADES,
+  COST_SCALING,
+  COST_SCALING_REDUCTION_PER_LEVEL,
+  DEFAULT_OFFLINE_CAP_HOURS,
+  MILESTONE_THRESHOLDS,
+  MILESTONE_FACTOR,
+  PRESTIGE_BASE_REQ,
+  PRESTIGE_REQ_GROWTH,
+  GC_BASE,
+  GC_CAP_BASE,
+  GC_CAP_PER_PRESTIGE,
+} from './constants'
 import { calcAchievementMultiplier } from './achievements'
 import { artifactGlobalMultiplier, artifactOfflineBonus } from './quests'
 
@@ -43,33 +57,51 @@ export function formatDuration(seconds: number): string {
   return `${h}h ${m}m`
 }
 
-export function calcProducerCost(producerId: string, owned: number): number {
+/** Effective per-unit cost growth, lowered by the `ghost_cost_scaling` prestige upgrade. */
+export function effectiveCostScaling(state: GameState): number {
+  const def = PRESTIGE_UPGRADES.find(u => u.effect === 'cost_scaling')
+  if (!def) return COST_SCALING
+  const times = state.purchasedPrestigeUpgrades[def.id] ?? 0
+  return COST_SCALING - COST_SCALING_REDUCTION_PER_LEVEL * times
+}
+
+export function calcProducerCost(producerId: string, owned: number, state: GameState): number {
   const def = PRODUCERS.find(p => p.id === producerId)
   if (!def) return Infinity
-  return Math.ceil(def.baseCost * Math.pow(COST_SCALING, owned))
+  return Math.ceil(def.baseCost * Math.pow(effectiveCostScaling(state), owned))
 }
 
 /** Closed-form cost of buying `qty` consecutive units of a producer starting at `owned`. */
-export function calcBulkProducerCost(producerId: string, owned: number, qty: number): number {
+export function calcBulkProducerCost(
+  producerId: string,
+  owned: number,
+  qty: number,
+  state: GameState,
+): number {
   const def = PRODUCERS.find(p => p.id === producerId)
   if (!def || qty <= 0) return 0
-  const r = COST_SCALING
+  const r = effectiveCostScaling(state)
   const raw = def.baseCost * Math.pow(r, owned) * (Math.pow(r, qty) - 1) / (r - 1)
   return Math.ceil(raw)
 }
 
 /** Max units of a producer affordable with `bits`, starting at `owned`. */
-export function calcMaxAffordable(producerId: string, owned: number, bits: number): number {
+export function calcMaxAffordable(
+  producerId: string,
+  owned: number,
+  bits: number,
+  state: GameState,
+): number {
   const def = PRODUCERS.find(p => p.id === producerId)
   if (!def) return 0
-  const r = COST_SCALING
+  const r = effectiveCostScaling(state)
   const firstCost = def.baseCost * Math.pow(r, owned)
   if (bits < firstCost) return 0
   const rhs = (bits * (r - 1)) / firstCost + 1
   let n = Math.max(0, Math.floor(Math.log(rhs) / Math.log(r)))
   // Correct for floating-point drift against the actual ceil'd cost
-  for (let i = 0; i < 5 && n > 0 && calcBulkProducerCost(producerId, owned, n) > bits; i++) n--
-  for (let i = 0; i < 5 && calcBulkProducerCost(producerId, owned, n + 1) <= bits; i++) n++
+  for (let i = 0; i < 5 && n > 0 && calcBulkProducerCost(producerId, owned, n, state) > bits; i++) n--
+  for (let i = 0; i < 5 && calcBulkProducerCost(producerId, owned, n + 1, state) <= bits; i++) n++
   return n
 }
 
@@ -118,10 +150,18 @@ export function calcGlobalMultiplier(state: GameState): number {
   return mult
 }
 
+/** Per-milestone factor, boosted by the `ghost_milestone` prestige upgrade. */
+export function milestoneFactor(state: GameState): number {
+  const def = PRESTIGE_UPGRADES.find(u => u.effect === 'milestone_boost')
+  if (!def) return MILESTONE_FACTOR
+  const times = state.purchasedPrestigeUpgrades[def.id] ?? 0
+  return MILESTONE_FACTOR * (1 + def.value * times)
+}
+
 export function calcMilestoneMultiplier(producerId: string, state: GameState): number {
   const owned = state.producers[producerId] ?? 0
   const reached = MILESTONE_THRESHOLDS.filter(t => owned >= t).length
-  return Math.pow(2, reached)
+  return Math.pow(milestoneFactor(state), reached)
 }
 
 export function nextMilestone(producerId: string, state: GameState): number | null {
@@ -150,16 +190,60 @@ export function calcBitsPerClick(state: GameState): number {
   return base * clickMult
 }
 
+/** Bits that must be earned this run before prestige unlocks. Grows with every prestige. */
+export function prestigeRequirement(state: GameState): number {
+  return PRESTIGE_BASE_REQ * Math.pow(PRESTIGE_REQ_GROWTH, state.prestigeCount)
+}
+
+export function canPrestige(state: GameState): boolean {
+  return state.totalBitsEarned >= prestigeRequirement(state)
+}
+
+/** Hard ceiling on Ghost Credits from a single prestige, before the Shadow Economy bonus. */
+export function ghostCreditCap(state: GameState): number {
+  return GC_CAP_BASE + GC_CAP_PER_PRESTIGE * state.prestigeCount
+}
+
 export function calcGhostCreditsFromBits(totalBitsEarned: number, state: GameState): number {
-  // Sub-linear (sqrt) so long play is rewarded without runaway; ×3 makes the first prestige feel meaningful.
-  const base = 3 * Math.sqrt(totalBitsEarned / 1_000_000)
+  const req = prestigeRequirement(state)
+  if (totalBitsEarned < req) return 0
+
   const ghostBonusUpgrade = PRESTIGE_UPGRADES.find(u => u.effect === 'ghost_bonus')
   let bonusMult = 1
   if (ghostBonusUpgrade) {
     const times = state.purchasedPrestigeUpgrades[ghostBonusUpgrade.id] ?? 0
     bonusMult = 1 + ghostBonusUpgrade.value * times
   }
-  return Math.floor(base * bonusMult)
+
+  // Cube-root of "how far past the gate you got": overshooting pays, but 8x the bits
+  // only doubles the payout. The hard cap on top stops the geometric runaway that the
+  // permanent multipliers would otherwise create across runs.
+  const base = GC_BASE * Math.cbrt(totalBitsEarned / req)
+  return Math.min(Math.floor(ghostCreditCap(state) * bonusMult), Math.floor(base * bonusMult))
+}
+
+/** Multiplier on contract bit rewards from the `ghost_contract` prestige upgrade. */
+export function contractRewardMultiplier(state: GameState): number {
+  const def = PRESTIGE_UPGRADES.find(u => u.effect === 'contract_bonus')
+  if (!def) return 1
+  return 1 + def.value * (state.purchasedPrestigeUpgrades[def.id] ?? 0)
+}
+
+/** How many purchased upgrades survive a prestige (`ghost_keep_upgrades`). */
+export function keptUpgradeCount(state: GameState): number {
+  const def = PRESTIGE_UPGRADES.find(u => u.effect === 'keep_upgrades')
+  if (!def) return 0
+  return def.value * (state.purchasedPrestigeUpgrades[def.id] ?? 0)
+}
+
+/** Producers granted at the start of a run (`ghost_start_producers`). */
+export function getStartProducers(state: GameState): Record<string, number> {
+  const def = PRESTIGE_UPGRADES.find(u => u.effect === 'start_producers')
+  if (!def) return {}
+  const times = state.purchasedPrestigeUpgrades[def.id] ?? 0
+  if (times === 0) return {}
+  const count = def.value * times
+  return { script: count, crawler: count }
 }
 
 /** Cost of the next level of a prestige upgrade, given how many are already owned. */

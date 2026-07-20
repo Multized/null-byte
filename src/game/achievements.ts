@@ -1,5 +1,5 @@
 import type { GameState } from './types'
-import { PRODUCERS, UPGRADES } from './constants'
+import { PRODUCERS, UPGRADES, PRESTIGE_UPGRADES } from './constants'
 
 export interface AchievementDef {
   id: string
@@ -114,6 +114,14 @@ const wealthAchievements: AchievementDef[] = [
     icon: '💾',
     check: s => s.totalBitsEarned >= 1e21,
   },
+  {
+    id: 'wealth_1sp',
+    name: 'Yottabyte-Singularität',
+    description: '1 YB insgesamt verdient',
+    flavor: 'Es gibt keine Vorsilbe mehr für das, was du tust.',
+    icon: '💾',
+    check: s => s.totalBitsEarned >= 1e24,
+  },
 ]
 
 const producerMasteryAchievements: AchievementDef[] = PRODUCERS.map(def => ({
@@ -184,6 +192,14 @@ const prestigeAchievements: AchievementDef[] = [
     flavor: 'Es gibt kein Netzwerk mehr, das dich nicht kennt. Und trotzdem kennt dich niemand.',
     icon: '👻',
     check: s => s.prestigeCount >= 50,
+  },
+  {
+    id: 'prestige_100',
+    name: 'Hundert Tode',
+    description: '100× prestiged',
+    flavor: 'Du hast aufgehört zu zählen. Das System nicht.',
+    icon: '👻',
+    check: s => s.prestigeCount >= 100,
   },
 ]
 
@@ -276,7 +292,19 @@ const miscAchievements: AchievementDef[] = [
     description: 'Ein Ghost-Upgrade auf Maximalstufe gebracht',
     flavor: 'Die dunkle Seite zahlt besser. Hat man dir gesagt.',
     icon: '👻',
-    check: s => Object.values(s.purchasedPrestigeUpgrades).some(count => count >= 5),
+    check: s => PRESTIGE_UPGRADES.some(
+      u => (s.purchasedPrestigeUpgrades[u.id] ?? 0) >= u.maxPurchases
+    ),
+  },
+  {
+    id: 'misc_ghost_shop_all',
+    name: 'Der vollständige Ghost',
+    description: 'Jedes Ghost-Upgrade auf Maximalstufe',
+    flavor: 'Es gibt nichts mehr zu kaufen. Es gibt nur noch dich.',
+    icon: '👑',
+    check: s => PRESTIGE_UPGRADES.every(
+      u => (s.purchasedPrestigeUpgrades[u.id] ?? 0) >= u.maxPurchases
+    ),
   },
 ]
 

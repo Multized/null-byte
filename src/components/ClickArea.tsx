@@ -1,8 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useGameStore } from '../game/store'
-import { formatBits, formatRate, calcGlobalMultiplier, calcGhostCreditsFromBits } from '../game/utils'
+import { formatBits, formatRate, calcGlobalMultiplier, calcGhostCreditsFromBits, prestigeRequirement } from '../game/utils'
 import { artifactComboWindowMs } from '../game/quests'
-import { PRESTIGE_UNLOCK_BITS } from '../game/constants'
 import { playSound } from '../game/sound'
 import { useTweenedNumber } from '../hooks/useTweenedNumber'
 import { ContractsPanel } from './ContractsPanel'
@@ -132,10 +131,11 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
   const comboHue = 190 - comboPct * 160 // cyan (190) → red (30)
   const comboActive = combo >= 2
 
-  const canPrestige = totalBitsEarned >= PRESTIGE_UNLOCK_BITS
+  const prestigeReq = prestigeRequirement(state)
+  const canPrestige = totalBitsEarned >= prestigeReq
   const hasGhostCredits = ghostCredits > 0
   const showGhostShopEntry = hasGhostCredits || prestigeCount > 0
-  const prestigeProgress = Math.min(1, totalBitsEarned / PRESTIGE_UNLOCK_BITS)
+  const prestigeProgress = Math.min(1, totalBitsEarned / prestigeReq)
   const willEarnGc = canPrestige ? calcGhostCreditsFromBits(totalBitsEarned, state) : 0
   const showPrestigeTeaser = !canPrestige && prestigeCount === 0 && prestigeProgress > 0.02
 

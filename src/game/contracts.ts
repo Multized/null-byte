@@ -1,5 +1,5 @@
 import type { ActiveContract, ContractType, GameState } from './types'
-import { calcBitsPerSecond } from './utils'
+import { calcBitsPerSecond, contractRewardMultiplier } from './utils'
 
 export interface ContractTemplate {
   type: ContractType
@@ -23,7 +23,7 @@ const TEMPLATES: ContractTemplate[] = [
     makeTarget: s => 50 + Math.min(450, Math.floor(s.totalClicks / 20)),
     counter: s => s.totalClicks,
     label: t => `Führe ${t} Klicks aus`,
-    rewardSeconds: 300,
+    rewardSeconds: 75,
     gcChance: 0,
   },
   {
@@ -32,7 +32,7 @@ const TEMPLATES: ContractTemplate[] = [
     makeTarget: () => 5 + Math.floor(Math.random() * 11),
     counter: s => s.totalProducersBought,
     label: t => `Kaufe ${t} Producer`,
-    rewardSeconds: 360,
+    rewardSeconds: 90,
     gcChance: 0,
   },
   {
@@ -41,7 +41,7 @@ const TEMPLATES: ContractTemplate[] = [
     makeTarget: s => Math.max(500, Math.ceil(calcBitsPerSecond(s) * 600)),
     counter: s => s.totalBitsEarned,
     label: t => `Verdiene ${formatShort(t)} Bits`,
-    rewardSeconds: 420,
+    rewardSeconds: 105,
     gcChance: 0.1,
   },
   {
@@ -50,7 +50,7 @@ const TEMPLATES: ContractTemplate[] = [
     makeTarget: () => 8 + Math.floor(Math.random() * 3) * 4, // 8, 12, 16
     counter: s => s.maxCombo,
     label: t => `Erreiche eine ${t}er-Combo`,
-    rewardSeconds: 300,
+    rewardSeconds: 75,
     gcChance: 0.15,
   },
   {
@@ -59,7 +59,7 @@ const TEMPLATES: ContractTemplate[] = [
     makeTarget: () => 1,
     counter: s => s.totalEventsClaimed,
     label: () => 'Claime 1 Event',
-    rewardSeconds: 480,
+    rewardSeconds: 120,
     gcChance: 0.2,
   },
   {
@@ -68,7 +68,7 @@ const TEMPLATES: ContractTemplate[] = [
     makeTarget: () => 1 + Math.floor(Math.random() * 2),
     counter: s => s.totalUpgradesBought,
     label: t => t === 1 ? 'Kaufe 1 Upgrade' : `Kaufe ${t} Upgrades`,
-    rewardSeconds: 420,
+    rewardSeconds: 105,
     gcChance: 0.1,
   },
   {
@@ -77,7 +77,7 @@ const TEMPLATES: ContractTemplate[] = [
     makeTarget: () => 1,
     counter: s => s.packetsCaught,
     label: () => 'Fange 1 Data Packet',
-    rewardSeconds: 540,
+    rewardSeconds: 135,
     gcChance: 0.25,
   },
   {
@@ -86,7 +86,7 @@ const TEMPLATES: ContractTemplate[] = [
     makeTarget: () => 300 + Math.floor(Math.random() * 3) * 150, // 5, 7.5, 10 min
     counter: s => s.totalPlaytimeSeconds,
     label: t => `Bleib ${Math.round(t / 60)} min aktiv`,
-    rewardSeconds: 360,
+    rewardSeconds: 90,
     gcChance: 0,
   },
 ]
@@ -115,7 +115,7 @@ export function rollContract(state: GameState): ActiveContract {
   const tpl = pool[Math.floor(Math.random() * pool.length)] ?? TEMPLATES[0]
 
   const bps = calcBitsPerSecond(state)
-  const reward = Math.max(100, Math.ceil(bps * tpl.rewardSeconds))
+  const reward = Math.max(100, Math.ceil(bps * tpl.rewardSeconds * contractRewardMultiplier(state)))
 
   return {
     id: `c${Date.now()}_${contractIdCounter++}`,

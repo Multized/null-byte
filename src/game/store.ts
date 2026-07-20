@@ -7,11 +7,14 @@ import {
   calcMaxAffordable,
   calcBulkProducerCost,
   getStartBits,
+  getStartProducers,
+  keptUpgradeCount,
+  canPrestige,
   isUpgradeUnlocked,
   hasAutoBuy,
   prestigeUpgradeCost,
 } from './utils'
-import { UPGRADES, PRESTIGE_UPGRADES, PRESTIGE_UNLOCK_BITS, MILESTONE_THRESHOLDS, PRODUCERS } from './constants'
+import { UPGRADES, PRESTIGE_UPGRADES, MILESTONE_THRESHOLDS, PRODUCERS } from './constants'
 import { findNewlyUnlocked } from './achievements'
 import { rollContract, isContractComplete } from './contracts'
 import { nextAvailableQuest, questById, isStepComplete, artifactContractSlots } from './quests'
@@ -206,7 +209,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       let cheapestCost = Infinity
       for (const def of PRODUCERS) {
         const owned = s.producers[def.id] ?? 0
-        const cost = calcBulkProducerCost(def.id, owned, 1)
+        const cost = calcBulkProducerCost(def.id, owned, 1, s)
         if (cost < cheapestCost) {
           cheapestCost = cost
           cheapestId = def.id
@@ -239,10 +242,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   buyProducer: (id: string, qty = 1) => {
     const state = get()
     const owned = state.producers[id] ?? 0
-    const maxAffordable = calcMaxAffordable(id, owned, state.bits)
+    const maxAffordable = calcMaxAffordable(id, owned, state.bits, state)
     const actualQty = Math.min(qty, maxAffordable)
     if (actualQty <= 0) return { bought: 0, cost: 0, milestoneReached: null }
-    const cost = calcBulkProducerCost(id, owned, actualQty)
+    const cost = calcBulkProducerCost(id, owned, actualQty, state)
     const newOwned = owned + actualQty
     const milestoneReached = MILESTONE_THRESHOLDS.find(t => owned < t && newOwned >= t) ?? null
     set(s => {
@@ -280,17 +283,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   prestige: () => {
     const state = get()
-    if (state.totalBitsEarned < PRESTIGE_UNLOCK_BITS) return
+    if (!canPrestige(state)) return
     const earned = calcGhostCreditsFromBits(state.totalBitsEarned, state)
     const startBits = getStartBits(state)
+    const startProducers = getStartProducers(state)
+    // "Versteckte Partition" keeps the cheapest purchased upgrades across the reset —
+    // cheapest first so the head start is a smooth ramp, not an endgame upgrade carried over.
+    const keep = keptUpgradeCount(state)
+    const keptUpgrades = keep === 0
+      ? []
+      : [...state.purchasedUpgrades]
+          .sort((a, b) => {
+            const ua = UPGRADES.find(u => u.id === a)
+            const ub = UPGRADES.find(u => u.id === b)
+            return (ua?.cost ?? 0) - (ub?.cost ?? 0)
+          })
+          .slice(0, keep)
     set(s => {
       const next: Partial<GameState> = {
         bits: startBits,
         totalBitsEarned: startBits,
         ghostCredits: s.ghostCredits + earned,
         totalGhostCreditsEarned: s.totalGhostCreditsEarned + earned,
-        producers: {},
-        purchasedUpgrades: [],
+        producers: startProducers,
+        purchasedUpgrades: keptUpgrades,
         prestigeCount: s.prestigeCount + 1,
         lastActive: Date.now(),
       }
@@ -409,7 +425,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const today = todayString()
     if (state.lastDailyClaim === today) return null
     const streak = state.lastDailyClaim === yesterdayString() ? state.dailyStreak + 1 : 1
-    const reward = Math.max(50, Math.ceil(calcBitsPerSecond(state) * 600 * Math.min(streak, 7)))
+    const reward = Math.max(50, Math.ceil(calcBitsPerSecond(state) * 300 * Math.min(streak, 7)))
     set(s => {
       const next: Partial<GameState> = {
         bits: s.bits + reward,

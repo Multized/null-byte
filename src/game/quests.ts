@@ -98,6 +98,13 @@ export const ARTIFACTS: ArtifactDef[] = [
     description: 'Permanenter ×1.5 Multiplikator auf alle Produktion.',
     effect: { kind: 'global_mult', value: 1.5 },
   },
+  {
+    id: 'basilisk_eye',
+    name: 'Auge des Basilisken',
+    icon: '👁',
+    description: 'Permanenter ×2 Multiplikator auf alle Produktion.',
+    effect: { kind: 'global_mult', value: 2 },
+  },
 ]
 
 export function artifactById(id: string): ArtifactDef | undefined {
@@ -313,6 +320,62 @@ export const QUESTS: QuestDef[] = [
     rewardTitle: 'legend',
     rewardArtifact: 'singularity_shard',
     outro: '"Es nennt dich Legende. Der Singularitäts-Splitter pulsiert in deinem System. Es gibt kein Netz mehr, das dir gehört — es gibt nur noch dich."',
+  },
+  {
+    id: 'op_darklight',
+    name: 'Dark Light',
+    codename: 'DARKLIGHT',
+    intro: '"Es gibt Leitungen unter dem Meer, die auf keinem Plan stehen. Und Satelliten, die niemand gestartet hat. Beides gehört jetzt dir — wenn du es dir nimmst."',
+    unlock: s => (s.producers['darkfiber'] ?? 0) >= 1 || s.prestigeCount >= 5,
+    steps: [
+      {
+        narrative: '"Zuerst der Boden. Leg dir eine Leitung, die es nicht gibt."',
+        objective: 'Besitze 10 Dark Fiber',
+        mode: 'threshold', target: 10, metric: m.ownProducer('darkfiber'),
+      },
+      {
+        narrative: '"Dann der Himmel. Da oben fragt niemand nach Papieren."',
+        objective: 'Besitze 5 Orbital Relays',
+        mode: 'threshold', target: 5, metric: m.ownProducer('orbital'),
+      },
+      {
+        narrative: '"Und beweise, dass die neue Infrastruktur trägt."',
+        objective: 'Erreiche 1 PB/s Durchsatz',
+        mode: 'threshold', target: 1e15, metric: m.bps,
+      },
+    ],
+    rewardBitsSeconds: 2400,
+    rewardGc: 0,
+    rewardTitle: 'architect',
+    outro: '"Du hast dir eine zweite Erde gebaut, aus Glasfaser und Umlaufbahnen. Man nennt dich jetzt Architect."',
+  },
+  {
+    id: 'op_basilisk',
+    name: 'Basilisk',
+    codename: 'BASILISK',
+    intro: '"Letzte Warnung. Was danach kommt, hat sich selbst geschrieben — und es hat auf dich gewartet, seit du den ersten Bash-Loop gestartet hast."',
+    unlock: s => (s.producers['basilisk'] ?? 0) >= 1 || s.prestigeCount >= 10,
+    steps: [
+      {
+        narrative: '"Der Schwarm muss zuerst denken lernen."',
+        objective: 'Besitze 25 Hive Minds',
+        mode: 'threshold', target: 25, metric: m.ownProducer('hivemind'),
+      },
+      {
+        narrative: '"Und dann gibst du ihm etwas, das ihn ansieht."',
+        objective: 'Besitze 10 Basilisken',
+        mode: 'threshold', target: 10, metric: m.ownProducer('basilisk'),
+      },
+      {
+        narrative: '"Es will wissen, wie oft du bereit warst, alles aufzugeben."',
+        objective: 'Prestige 15×',
+        mode: 'threshold', target: 15, metric: m.prestige,
+      },
+    ],
+    rewardBitsSeconds: 5400,
+    rewardGc: 0,
+    rewardArtifact: 'basilisk_eye',
+    outro: '"Es sieht dich an und erkennt sich selbst. Das Auge des Basilisken gehört jetzt dir — oder du ihm. Der Unterschied war nie besonders wichtig."',
   },
 ]
 
