@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useGameStore } from '../game/store'
-import { formatBits, formatRate, calcGlobalMultiplier, calcGhostCreditsFromBits, prestigeRequirement } from '../game/utils'
+import { formatBits, formatRate, calcGlobalMultiplier, calcGhostCreditsFromBits, prestigeRequirement, canAscend } from '../game/utils'
 import { artifactComboWindowMs } from '../game/quests'
+import { OVERCLOCK_MULT } from '../game/constants'
 import { playSound } from '../game/sound'
 import { useTweenedNumber } from '../hooks/useTweenedNumber'
 import { ContractsPanel } from './ContractsPanel'
@@ -32,6 +33,7 @@ const COMBO_CAP = 20
 interface Props {
   onPrestigeClick: () => void
   onGhostShopClick: () => void
+  onAscensionClick: () => void
 }
 
 function StatSlot({ icon, label, value, accent = 'cyan' }: { icon: string; label: string; value: string; accent?: 'cyan' | 'purple' }) {
@@ -47,7 +49,7 @@ function StatSlot({ icon, label, value, accent = 'cyan' }: { icon: string; label
   )
 }
 
-export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
+export function ClickArea({ onPrestigeClick, onGhostShopClick, onAscensionClick }: Props) {
   const click = useGameStore(s => s.click)
   const recordCombo = useGameStore(s => s.recordCombo)
   const bitsPerClick = useGameStore(s => s.bitsPerClick)
@@ -55,6 +57,10 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
   const totalBitsEarned = useGameStore(s => s.totalBitsEarned)
   const ghostCredits = useGameStore(s => s.ghostCredits)
   const prestigeCount = useGameStore(s => s.prestigeCount)
+  const overclockCharge = useGameStore(s => s.overclockCharge)
+  const overclockActiveUntil = useGameStore(s => s.overclockActiveUntil)
+  const activateOverclock = useGameStore(s => s.activateOverclock)
+  const ascensionCount = useGameStore(s => s.ascensionCount)
   const eventBpsMultiplier = useGameStore(s => s.eventBpsMultiplier)
   const eventClickMultiplier = useGameStore(s => s.eventClickMultiplier)
   const eventExpiresAt = useGameStore(s => s.eventExpiresAt)
@@ -138,6 +144,20 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
   const prestigeProgress = Math.min(1, totalBitsEarned / prestigeReq)
   const willEarnGc = canPrestige ? calcGhostCreditsFromBits(totalBitsEarned, state) : 0
   const showPrestigeTeaser = !canPrestige && prestigeCount === 0 && prestigeProgress > 0.02
+
+  const overclockActive = overclockActiveUntil > now
+  const overclockReady = overclockCharge >= 1 && !overclockActive
+  const overclockSecondsLeft = overclockActive ? Math.ceil((overclockActiveUntil - now) / 1000) : 0
+  const ascendReady = canAscend(state)
+  const showAscensionEntry = ascendReady || ascensionCount > 0
+
+  // Keep the overclock countdown / charge bar ticking even when nothing else changes.
+  const [, forceTick] = useState(0)
+  useEffect(() => {
+    if (!overclockActive && overclockCharge <= 0) return
+    const id = setInterval(() => forceTick(n => n + 1), 200)
+    return () => clearInterval(id)
+  }, [overclockActive, overclockCharge])
 
   return (
     <div className="flex flex-col items-center w-full max-w-md px-6 pt-4 md:pt-5 pb-6 gap-5">
@@ -280,6 +300,47 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
         ) : null}
       </div>
 
+      {/* Overdrive — active burst charged by clicking. Rewards attention mid-run.
+          Internally still `overclock*`; labelled Overdrive to avoid clashing with the
+          existing random "System Overclock" event. */}
+      <div className="w-full">
+        {overclockActive ? (
+          <div className="w-full rounded-lg border border-amber-500/60 bg-amber-950/20 px-4 py-2.5 flex items-center gap-3 animate-pulse">
+            <span className="text-lg leading-none">🔋</span>
+            <span className="flex-1 font-mono text-xs font-semibold text-amber-300 tracking-wide">
+              OVERDRIVE ×{OVERCLOCK_MULT}
+            </span>
+            <span className="font-mono text-sm text-amber-300 tabular-nums">{overclockSecondsLeft}s</span>
+          </div>
+        ) : (
+          <button
+            onClick={() => { if (activateOverclock()) playSound('combo', 20) }}
+            disabled={!overclockReady}
+            className={`
+              w-full rounded-lg border px-4 py-2 transition-all duration-150
+              ${overclockReady
+                ? 'border-amber-500/60 bg-amber-950/20 hover:bg-amber-900/30 cursor-pointer animate-pulse'
+                : 'border-slate-800/50 bg-[#08080f]/60 cursor-default'
+              }
+            `}
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className={`text-sm leading-none ${overclockReady ? '' : 'opacity-40 grayscale'}`}>🔋</span>
+              <span className={`flex-1 text-left font-mono text-[10px] uppercase tracking-widest ${overclockReady ? 'text-amber-400' : 'text-slate-600'}`}>
+                {overclockReady ? `Overdrive bereit — antippen für ×${OVERCLOCK_MULT}` : 'Overdrive — klicke zum Aufladen'}
+              </span>
+              <span className="font-mono text-[10px] text-slate-600">{Math.floor(overclockCharge * 100)}%</span>
+            </div>
+            <div className="w-full h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all duration-150 ${overclockReady ? 'bg-amber-400/80' : 'bg-amber-600/40'}`}
+                style={{ width: `${overclockCharge * 100}%` }}
+              />
+            </div>
+          </button>
+        )}
+      </div>
+
       {/* Action dock — fixed slot, never shifts the button above it */}
       <div className="w-full flex flex-col gap-2 min-h-[52px]">
         {canPrestige && (
@@ -310,6 +371,26 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick }: Props) {
             <span className="text-base leading-none">👻</span>
             <span className="flex-1 text-left">Ghost Shop</span>
             {hasGhostCredits && <span className="text-indigo-300">{Math.floor(ghostCredits)} gc</span>}
+          </button>
+        )}
+
+        {showAscensionEntry && (
+          <button
+            onClick={onAscensionClick}
+            className={`
+              w-full flex items-center gap-3 font-mono text-xs px-4 py-2.5 rounded-lg
+              border transition-all duration-150
+              ${ascendReady
+                ? 'border-emerald-500/60 text-emerald-200 bg-emerald-900/20 hover:bg-emerald-900/35 hover:border-emerald-400 animate-pulse'
+                : 'border-emerald-800/40 text-emerald-300/80 bg-emerald-950/10 hover:bg-emerald-950/20 hover:border-emerald-600/50'
+              }
+            `}
+          >
+            <span className="text-base leading-none">⬢</span>
+            <span className="flex-1 text-left font-semibold tracking-wide">
+              {ascendReady ? 'ROOT ACCESS VERFÜGBAR' : 'Root Access'}
+            </span>
+            {ascensionCount > 0 && <span className="text-emerald-300">{ascensionCount}×</span>}
           </button>
         )}
       </div>

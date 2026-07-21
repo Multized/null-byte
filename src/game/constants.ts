@@ -1,4 +1,4 @@
-import type { ProducerDef, UpgradeDef, PrestigeUpgradeDef } from './types'
+import type { ProducerDef, UpgradeDef, PrestigeUpgradeDef, AscensionUpgradeDef } from './types'
 
 export const COST_SCALING = 1.15
 /** Each level of `ghost_cost_scaling` shaves this off COST_SCALING. */
@@ -27,6 +27,26 @@ export const PRESTIGE_REQ_GROWTH = 3
 export const GC_BASE = 12
 export const GC_CAP_BASE = 15
 export const GC_CAP_PER_PRESTIGE = 15
+
+// ---- Ascension (second prestige layer) --------------------------------------
+// The Ghost Shop is finite (~11.5K GC). Ascension gives that grind a "next": trade
+// the whole prestige layer for Root Keys, a currency whose bonus persists through
+// every future prestige AND ascension. Same anti-runaway shape as ghost credits:
+// gated, cube-root scaled, hard-capped per ascension.
+export const ASCENSION_BASE_REQ = 5_000        // ghost credits earned since last ascension
+export const ASCENSION_REQ_GROWTH = 1.5
+export const RK_BASE = 4
+export const RK_CAP_BASE = 6
+export const RK_CAP_PER_ASCENSION = 5
+// Each raw (unspent-or-spent, i.e. lifetime-owned) root key grants this much permanent
+// global bonus, on top of whatever the ascension shop adds.
+export const RK_GLOBAL_PER_KEY = 0.25
+
+// ---- Overclock (active mid-run burst) ---------------------------------------
+export const OVERCLOCK_CHARGE_PER_CLICK = 0.028 // ~36 plain clicks to fill; combos fill faster
+export const OVERCLOCK_DECAY_PER_SEC = 0.05     // drains when idle, so it rewards bursts
+export const OVERCLOCK_DURATION_MS = 15_000
+export const OVERCLOCK_MULT = 5                  // production ×5 while active
 
 export const PRODUCERS: ProducerDef[] = [
   {
@@ -997,5 +1017,54 @@ export const PRESTIGE_UPGRADES: PrestigeUpgradeDef[] = [
     effect: 'auto_buy',
     value: 1,
     maxPurchases: 1,
+  },
+]
+
+// Spent with Root Keys after an ascension. Small and expensive on purpose: the raw
+// per-key global bonus is the backbone, the shop just shapes how you re-climb.
+export const ASCENSION_UPGRADES: AscensionUpgradeDef[] = [
+  {
+    id: 'asc_global',
+    name: 'Root Signature',
+    description: 'Globaler ×1.4 Multiplikator (bleibt für immer)',
+    flavor: 'Dein Fingerabdruck ist jetzt im Kernel jeder Maschine.',
+    cost: 3,
+    costGrowth: 1.6,
+    effect: 'global_multiplier',
+    value: 1.4,
+    maxPurchases: 10,
+  },
+  {
+    id: 'asc_gc_gain',
+    name: 'Tiefe Taschen',
+    description: '+30% Ghost Credits bei jedem Prestige',
+    flavor: 'Wer den Kern besitzt, diktiert die Wechselkurse.',
+    cost: 4,
+    costGrowth: 1.7,
+    effect: 'gc_gain',
+    value: 0.3,
+    maxPurchases: 8,
+  },
+  {
+    id: 'asc_prestige_boost',
+    name: 'Reinkarnations-Protokoll',
+    description: 'Prestige-Bonus pro Stufe +0.1 stärker',
+    flavor: 'Jeder Tod schärft die Klinge etwas mehr.',
+    cost: 5,
+    costGrowth: 1.8,
+    effect: 'prestige_boost',
+    value: 0.1,
+    maxPurchases: 5,
+  },
+  {
+    id: 'asc_headstart',
+    name: 'Warmer Start',
+    description: 'Beginne jede Ascension mit 400 Ghost Credits',
+    flavor: 'Du hast gelernt, wo die Leichen vergraben sind. Und die Kontostände.',
+    cost: 6,
+    costGrowth: 1.9,
+    effect: 'gc_headstart',
+    value: 400,
+    maxPurchases: 5,
   },
 ]

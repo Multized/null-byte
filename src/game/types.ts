@@ -48,6 +48,19 @@ export interface PrestigeUpgradeDef {
   maxPurchases: number
 }
 
+export interface AscensionUpgradeDef {
+  id: string
+  name: string
+  description: string
+  flavor: string
+  cost: number
+  /** Per-level cost multiplier; each already-owned level multiplies the price. Default 1 = flat. */
+  costGrowth?: number
+  effect: 'global_multiplier' | 'gc_gain' | 'prestige_boost' | 'gc_headstart'
+  value: number
+  maxPurchases: number
+}
+
 export type ContractType =
   | 'clicks'
   | 'buy_producers'
@@ -111,4 +124,11 @@ export interface GameState {
   autoBuyEnabled: boolean
   decisionsMade: number
   gamblesWon: number
+  // ---- Ascension (second prestige layer) ----
+  rootKeys: number
+  totalRootKeysEarned: number
+  ascensionCount: number
+  /** totalGhostCreditsEarned at the last ascension; the earn formula measures from here. */
+  ghostCreditsAtLastAscension: number
+  purchasedAscensionUpgrades: Record<string, number>
 }

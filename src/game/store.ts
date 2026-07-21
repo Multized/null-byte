@@ -10,11 +10,15 @@ import {
   getStartProducers,
   keptUpgradeCount,
   canPrestige,
+  canAscend,
+  calcRootKeysFromAscension,
+  getAscensionHeadstartGc,
+  ascensionUpgradeCost,
   isUpgradeUnlocked,
   hasAutoBuy,
   prestigeUpgradeCost,
 } from './utils'
-import { UPGRADES, PRESTIGE_UPGRADES, MILESTONE_THRESHOLDS, PRODUCERS, SAVE_EPOCH } from './constants'
+import { UPGRADES, PRESTIGE_UPGRADES, ASCENSION_UPGRADES, MILESTONE_THRESHOLDS, PRODUCERS, SAVE_EPOCH, OVERCLOCK_MULT, OVERCLOCK_CHARGE_PER_CLICK, OVERCLOCK_DECAY_PER_SEC, OVERCLOCK_DURATION_MS } from './constants'
 import { findNewlyUnlocked } from './achievements'
 import { rollContract, isContractComplete } from './contracts'
 import { nextAvailableQuest, questById, isStepComplete, artifactContractSlots } from './quests'
@@ -102,6 +106,11 @@ function defaultState(): GameState {
     autoBuyEnabled: true,
     decisionsMade: 0,
     gamblesWon: 0,
+    rootKeys: 0,
+    totalRootKeysEarned: 0,
+    ascensionCount: 0,
+    ghostCreditsAtLastAscension: 0,
+    purchasedAscensionUpgrades: {},
   }
 }
 
@@ -119,6 +128,10 @@ interface GameStore extends GameState {
   penaltyMultiplier: number
   penaltyExpiresAt: number
 
+  // Overclock — active mid-run burst (not persisted)
+  overclockCharge: number
+  overclockActiveUntil: number
+
   // Actions
   click: (comboMultiplier?: number) => number
   tick: (delta: number) => void
@@ -126,6 +139,9 @@ interface GameStore extends GameState {
   buyUpgrade: (id: string) => boolean
   prestige: () => void
   buyPrestigeUpgrade: (id: string) => boolean
+  ascend: () => void
+  buyAscensionUpgrade: (id: string) => boolean
+  activateOverclock: () => boolean
   loadState: (state: GameState) => void
   updateLastActive: () => void
   setPlayerName: (name: string, tag: string) => void
@@ -164,12 +180,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
   eventExpiresAt: 0,
   penaltyMultiplier: 1,
   penaltyExpiresAt: 0,
+  overclockCharge: 0,
+  overclockActiveUntil: 0,
 
   click: (comboMultiplier = 1) => {
     const state = get()
     const now = Date.now()
     const clickMult = now < state.eventExpiresAt ? state.eventClickMultiplier : 1
-    const bpc = calcBitsPerClick(state) * clickMult * comboMultiplier
+    const overclockMult = now < state.overclockActiveUntil ? OVERCLOCK_MULT : 1
+    const bpc = calcBitsPerClick(state) * clickMult * overclockMult * comboMultiplier
+    // A harder combo charges the overclock faster, so skilled clicking pays twice.
+    const chargeGain = state.overclockActiveUntil > now
+      ? 0 // don't refill while it's already running
+      : OVERCLOCK_CHARGE_PER_CLICK * comboMultiplier
     set(s => {
       const next: Partial<GameState> = {
         bits: s.bits + bpc,
@@ -178,6 +201,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })
+    if (chargeGain > 0) {
+      set(s => ({ overclockCharge: Math.min(1, s.overclockCharge + chargeGain) }))
+    }
     get().checkAchievements()
     return bpc
   },
@@ -193,9 +219,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state.penaltyExpiresAt > 0 && now >= state.penaltyExpiresAt) {
       set({ penaltyMultiplier: 1, penaltyExpiresAt: 0 })
     }
+    // Overclock charge drains while idle so it rewards bursts, not lifetime click count.
+    // It never drains while the boost is running, and — importantly — it latches once full:
+    // reaching 100% must stay "ready" until the player activates it, otherwise the ready
+    // window would evaporate the instant they stop clicking.
+    if (state.overclockActiveUntil <= now && state.overclockCharge > 0 && state.overclockCharge < 1) {
+      const drained = Math.max(0, state.overclockCharge - OVERCLOCK_DECAY_PER_SEC * delta)
+      if (drained !== state.overclockCharge) set({ overclockCharge: drained })
+    }
     const bpsMult = now < state.eventExpiresAt ? state.eventBpsMultiplier : 1
     const penaltyMult = now < state.penaltyExpiresAt ? state.penaltyMultiplier : 1
-    const bps = calcBitsPerSecond(state) * bpsMult * penaltyMult
+    const overclockMult = now < state.overclockActiveUntil ? OVERCLOCK_MULT : 1
+    const bps = calcBitsPerSecond(state) * bpsMult * penaltyMult * overclockMult
     const earned = bps * delta
     set(s => {
       const next: Partial<GameState> = {
@@ -345,6 +380,67 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return true
   },
 
+  ascend: () => {
+    const state = get()
+    if (!canAscend(state)) return
+    const earnedKeys = calcRootKeysFromAscension(state)
+    // Everything below the ascension layer is wiped; the layer itself and identity stay.
+    // The head-start GC seed lets the ascension upgrade shortcut the early ghost grind.
+    set(s => {
+      const headstartGc = getAscensionHeadstartGc(s)
+      const next: Partial<GameState> = {
+        bits: 0,
+        totalBitsEarned: 0,
+        ghostCredits: headstartGc,
+        // lifetime totalGhostCreditsEarned is kept (achievements/leaderboard); the ascension
+        // earn formula measures from ghostCreditsAtLastAscension, which we reset to "now".
+        ghostCreditsAtLastAscension: s.totalGhostCreditsEarned,
+        producers: {},
+        purchasedUpgrades: [],
+        purchasedPrestigeUpgrades: {},
+        prestigeCount: 0,
+        activeContracts: [],
+        rootKeys: s.rootKeys + earnedKeys,
+        totalRootKeysEarned: s.totalRootKeysEarned + earnedKeys,
+        ascensionCount: s.ascensionCount + 1,
+        lastActive: Date.now(),
+      }
+      return { ...next, ...computeDerived({ ...s, ...next } as GameState) }
+    })
+    get().ensureContracts()
+    get().checkAchievements()
+  },
+
+  buyAscensionUpgrade: (id: string) => {
+    const state = get()
+    const upgrade = ASCENSION_UPGRADES.find(u => u.id === id)
+    if (!upgrade) return false
+    const timesBought = state.purchasedAscensionUpgrades[id] ?? 0
+    if (timesBought >= upgrade.maxPurchases) return false
+    const cost = ascensionUpgradeCost(upgrade, timesBought)
+    if (state.rootKeys < cost) return false
+    set(s => {
+      const purchasedAscensionUpgrades = {
+        ...s.purchasedAscensionUpgrades,
+        [id]: timesBought + 1,
+      }
+      const next: Partial<GameState> = {
+        rootKeys: s.rootKeys - cost,
+        purchasedAscensionUpgrades,
+      }
+      return { ...next, ...computeDerived({ ...s, ...next }) }
+    })
+    get().checkAchievements()
+    return true
+  },
+
+  activateOverclock: () => {
+    const state = get()
+    if (state.overclockCharge < 1 || Date.now() < state.overclockActiveUntil) return false
+    set({ overclockCharge: 0, overclockActiveUntil: Date.now() + OVERCLOCK_DURATION_MS })
+    return true
+  },
+
   loadState: (state: GameState) => {
     set({ ...state, ...computeDerived(state) })
   },
@@ -368,6 +464,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       eventExpiresAt: 0,
       penaltyMultiplier: 1,
       penaltyExpiresAt: 0,
+      overclockCharge: 0,
+      overclockActiveUntil: 0,
     })
     get().syncQuest()
     get().ensureContracts()
@@ -617,6 +715,11 @@ export function getSerializableState(): GameState {
     autoBuyEnabled: s.autoBuyEnabled,
     decisionsMade: s.decisionsMade,
     gamblesWon: s.gamblesWon,
+    rootKeys: s.rootKeys,
+    totalRootKeysEarned: s.totalRootKeysEarned,
+    ascensionCount: s.ascensionCount,
+    ghostCreditsAtLastAscension: s.ghostCreditsAtLastAscension,
+    purchasedAscensionUpgrades: s.purchasedAscensionUpgrades,
   }
 }
 

@@ -88,6 +88,12 @@ export function loadGame(): GameState | null {
       autoBuyEnabled: data.autoBuyEnabled ?? true,
       decisionsMade: data.decisionsMade ?? 0,
       gamblesWon: data.gamblesWon ?? 0,
+      // Ascension fields — default for saves written before the layer existed.
+      rootKeys: data.rootKeys ?? 0,
+      totalRootKeysEarned: data.totalRootKeysEarned ?? 0,
+      ascensionCount: data.ascensionCount ?? 0,
+      ghostCreditsAtLastAscension: data.ghostCreditsAtLastAscension ?? 0,
+      purchasedAscensionUpgrades: data.purchasedAscensionUpgrades ?? {},
     }
   } catch (e) {
     console.error('Load failed:', e)

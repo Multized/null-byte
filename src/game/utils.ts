@@ -1,8 +1,9 @@
-import type { GameState, PrestigeUpgradeDef } from './types'
+import type { GameState, PrestigeUpgradeDef, AscensionUpgradeDef } from './types'
 import {
   PRODUCERS,
   UPGRADES,
   PRESTIGE_UPGRADES,
+  ASCENSION_UPGRADES,
   COST_SCALING,
   COST_SCALING_REDUCTION_PER_LEVEL,
   DEFAULT_OFFLINE_CAP_HOURS,
@@ -13,6 +14,12 @@ import {
   GC_BASE,
   GC_CAP_BASE,
   GC_CAP_PER_PRESTIGE,
+  ASCENSION_BASE_REQ,
+  ASCENSION_REQ_GROWTH,
+  RK_BASE,
+  RK_CAP_BASE,
+  RK_CAP_PER_ASCENSION,
+  RK_GLOBAL_PER_KEY,
 } from './constants'
 import { calcAchievementMultiplier } from './achievements'
 import { artifactGlobalMultiplier, artifactOfflineBonus } from './quests'
@@ -136,6 +143,31 @@ export function calcClickMultiplier(state: GameState): number {
   return mult
 }
 
+/** Level of an ascension upgrade (0 if never bought). */
+export function ascensionLevel(state: GameState, effect: AscensionUpgradeDef['effect']): number {
+  const def = ASCENSION_UPGRADES.find(u => u.effect === effect)
+  if (!def) return 0
+  return state.purchasedAscensionUpgrades?.[def.id] ?? 0
+}
+
+/**
+ * Permanent multiplier from the ascension layer. Persists through every prestige AND
+ * ascension — it is the whole point of Root Keys.
+ */
+export function calcAscensionMultiplier(state: GameState): number {
+  const keys = state.totalRootKeysEarned ?? 0
+  let mult = 1 + RK_GLOBAL_PER_KEY * keys
+  const globalDef = ASCENSION_UPGRADES.find(u => u.effect === 'global_multiplier')
+  if (globalDef) mult *= Math.pow(globalDef.value, ascensionLevel(state, 'global_multiplier'))
+  return mult
+}
+
+/** The inherent per-prestige bonus rate, boosted by the `asc_prestige_boost` upgrade. */
+export function prestigeBonusRate(state: GameState): number {
+  const def = ASCENSION_UPGRADES.find(u => u.effect === 'prestige_boost')
+  return 0.2 + (def?.value ?? 0) * ascensionLevel(state, 'prestige_boost')
+}
+
 export function calcGlobalMultiplier(state: GameState): number {
   let mult = 1
   const prestigeGlobalUpgrade = PRESTIGE_UPGRADES.find(u => u.effect === 'global_multiplier')
@@ -146,7 +178,9 @@ export function calcGlobalMultiplier(state: GameState): number {
   mult *= calcAchievementMultiplier(state)
   mult *= artifactGlobalMultiplier(state)
   // Inherent per-prestige bonus — every prestige makes you directly stronger (linear, no runaway)
-  mult *= 1 + 0.2 * state.prestigeCount
+  mult *= 1 + prestigeBonusRate(state) * state.prestigeCount
+  // Permanent ascension bonus — survives prestige and ascension
+  mult *= calcAscensionMultiplier(state)
   return mult
 }
 
@@ -214,12 +248,71 @@ export function calcGhostCreditsFromBits(totalBitsEarned: number, state: GameSta
     const times = state.purchasedPrestigeUpgrades[ghostBonusUpgrade.id] ?? 0
     bonusMult = 1 + ghostBonusUpgrade.value * times
   }
+  // Ascension "Tiefe Taschen" boosts GC gain on top; the cap is boosted too so it
+  // actually pays out rather than being clipped away.
+  const ascGcDef = ASCENSION_UPGRADES.find(u => u.effect === 'gc_gain')
+  if (ascGcDef) bonusMult *= 1 + ascGcDef.value * ascensionLevel(state, 'gc_gain')
 
   // Cube-root of "how far past the gate you got": overshooting pays, but 8x the bits
   // only doubles the payout. The hard cap on top stops the geometric runaway that the
   // permanent multipliers would otherwise create across runs.
   const base = GC_BASE * Math.cbrt(totalBitsEarned / req)
   return Math.min(Math.floor(ghostCreditCap(state) * bonusMult), Math.floor(base * bonusMult))
+}
+
+// ---- Ascension formulas ------------------------------------------------------
+
+/** Ghost credits that must be earned since the last ascension before it unlocks. */
+export function ascensionRequirement(state: GameState): number {
+  return ASCENSION_BASE_REQ * Math.pow(ASCENSION_REQ_GROWTH, state.ascensionCount ?? 0)
+}
+
+/** Ghost credits banked toward the next ascension. */
+export function ghostCreditsThisAscension(state: GameState): number {
+  return (state.totalGhostCreditsEarned ?? 0) - (state.ghostCreditsAtLastAscension ?? 0)
+}
+
+/** True once every ghost-shop upgrade is at max level. */
+export function isGhostShopMaxed(state: GameState): boolean {
+  return PRESTIGE_UPGRADES.every(
+    u => (state.purchasedPrestigeUpgrades[u.id] ?? 0) >= u.maxPurchases
+  )
+}
+
+export function canAscend(state: GameState): boolean {
+  // Two gates: enough ghost credits earned this cycle AND the whole ghost shop bought.
+  // The shop gate is what actually binds — it makes ascension "the thing after the shop"
+  // and stops the button tempting players away from an unfinished shop.
+  return (
+    ghostCreditsThisAscension(state) >= ascensionRequirement(state) &&
+    isGhostShopMaxed(state)
+  )
+}
+
+/** Hard ceiling on Root Keys from a single ascension. */
+export function rootKeyCap(state: GameState): number {
+  return RK_CAP_BASE + RK_CAP_PER_ASCENSION * (state.ascensionCount ?? 0)
+}
+
+export function calcRootKeysFromAscension(state: GameState): number {
+  const req = ascensionRequirement(state)
+  const earned = ghostCreditsThisAscension(state)
+  if (earned < req) return 0
+  const base = RK_BASE * Math.cbrt(earned / req)
+  return Math.min(rootKeyCap(state), Math.floor(base))
+}
+
+/** Ghost credits granted at the start of each ascension (`asc_headstart`). */
+export function getAscensionHeadstartGc(state: GameState): number {
+  const def = ASCENSION_UPGRADES.find(u => u.effect === 'gc_headstart')
+  if (!def) return 0
+  return def.value * ascensionLevel(state, 'gc_headstart')
+}
+
+/** Cost of the next level of an ascension upgrade, given how many are already owned. */
+export function ascensionUpgradeCost(def: AscensionUpgradeDef, owned: number): number {
+  const growth = def.costGrowth ?? 1
+  return Math.ceil(def.cost * Math.pow(growth, owned))
 }
 
 /** Multiplier on contract bit rewards from the `ghost_contract` prestige upgrade. */

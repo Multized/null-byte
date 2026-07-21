@@ -12,6 +12,7 @@ import { ProducerList } from './components/ProducerList'
 import { UpgradePanel } from './components/UpgradePanel'
 import { PrestigeModal } from './components/PrestigeModal'
 import { GhostShopModal } from './components/GhostShopModal'
+import { AscensionModal } from './components/AscensionModal'
 import { OfflineModal } from './components/OfflineModal'
 import { NameModal } from './components/NameModal'
 import { Leaderboard, type LeaderboardEntry } from './components/Leaderboard'
@@ -63,6 +64,7 @@ export default function App() {
   const [desktopTab, setDesktopTab] = useState<DesktopTab>('shop')
   const [showPrestige, setShowPrestige] = useState(false)
   const [showGhostShop, setShowGhostShop] = useState(false)
+  const [showAscension, setShowAscension] = useState(false)
   const [showNameModal, setShowNameModal] = useState(false)
   const [offlineResult, setOfflineResult] = useState<{ result: OfflineResult; state: GameState } | null>(null)
   const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([])
@@ -242,7 +244,7 @@ export default function App() {
           <MatrixRain hue={tierHue} opacity={0.05 + visualTier * 0.014} />
           <div className="scanline pointer-events-none absolute inset-0 transition-opacity duration-1000" style={{ opacity: scanlineOpacity }} />
           <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.4) 100%)' }} />
-          <ClickArea onPrestigeClick={() => setShowPrestige(true)} onGhostShopClick={() => setShowGhostShop(true)} />
+          <ClickArea onPrestigeClick={() => setShowPrestige(true)} onGhostShopClick={() => setShowGhostShop(true)} onAscensionClick={() => setShowAscension(true)} />
           <DataPacketLayer />
         </div>
 
@@ -307,7 +309,7 @@ export default function App() {
           {mobileTab === 'run' && (
             <div className="relative min-h-full flex flex-col items-center">
               <MatrixRain hue={tierHue} opacity={0.05 + visualTier * 0.014} />
-              <ClickArea onPrestigeClick={() => setShowPrestige(true)} onGhostShopClick={() => setShowGhostShop(true)} />
+              <ClickArea onPrestigeClick={() => setShowPrestige(true)} onGhostShopClick={() => setShowGhostShop(true)} onAscensionClick={() => setShowAscension(true)} />
               <DataPacketLayer />
             </div>
           )}
@@ -395,6 +397,7 @@ export default function App() {
         />
       )}
       {showGhostShop && <GhostShopModal onClose={() => setShowGhostShop(false)} />}
+      {showAscension && <AscensionModal onClose={() => setShowAscension(false)} />}
       {showNameModal && <NameModal onClose={() => setShowNameModal(false)} />}
       {offlineResult && (
         <OfflineModal
