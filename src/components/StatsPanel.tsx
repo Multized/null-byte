@@ -5,7 +5,7 @@ import {
   calcGlobalMultiplier,
   calcDefenseRating,
   defenseTier,
-  dailyStreakInfo,
+  dailyStreakStatus,
 } from '../game/utils'
 import { ACHIEVEMENTS } from '../game/achievements'
 
@@ -46,7 +46,7 @@ export function StatsPanel() {
   const defense = calcDefenseRating(state)
   const modulesPlaced = Object.keys(state.chipCells ?? {}).length
   const achPct = state.unlockedAchievements.length / ACHIEVEMENTS.length
-  const streak = dailyStreakInfo(state).effective
+  const streak = dailyStreakStatus(state).effective
 
   // Headline tiles — the numbers worth showing off first.
   const tiles: { label: string; value: string; sub?: string; color: string }[] = [

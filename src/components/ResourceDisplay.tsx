@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useGameStore } from '../game/store'
-import { formatBits, formatRate, dailyStreakInfo } from '../game/utils'
+import { formatBits, formatRate, dailyStreakStatus } from '../game/utils'
 import { isSfxMuted, toggleSfx, isMusicOn, toggleMusic } from '../game/sound'
 import { useTweenedNumber } from '../hooks/useTweenedNumber'
 
@@ -14,7 +14,7 @@ export function ResourceDisplay() {
   const [sfxMuted, setSfxMutedState] = useState(isSfxMuted())
   const [musicOn, setMusicOnState] = useState(isMusicOn())
   const displayBits = useTweenedNumber(bits)
-  const streak = dailyStreakInfo(state).effective
+  const streak = dailyStreakStatus(state).effective
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800/80 bg-[#050508]/90 backdrop-blur-sm">

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import type { GameState } from './types'
 import { calcDefenseRating } from './utils'
+import { getSerializableState } from './store'
 
 const SUPABASE_URL = 'https://supabase.westmeier.tech'
 // Public by design; all authorisation happens server-side. The client has no direct
@@ -83,6 +84,10 @@ export async function findFreeTag(name: string, playerId: string): Promise<strin
 export async function submitScore(state: GameState): Promise<void> {
   if (!state.playerId || !state.syncCode || !state.playerName) return
   try {
+    // Store only the persistent state in game_state — the raw store also carries transient
+    // timers (overclock/event/penalty) and computed fields, which would otherwise ride along
+    // and be re-applied on a cross-device sync load.
+    const persisted = getSerializableState()
     const { error } = await supabase.rpc('nb_submit_score', {
       p_player_id: state.playerId,
       p_sync_code: state.syncCode,
@@ -90,7 +95,7 @@ export async function submitScore(state: GameState): Promise<void> {
       p_name_tag: state.playerTag || '0000',
       p_bits: state.totalBitsEarned,
       p_prestige: state.prestigeCount,
-      p_state: state,
+      p_state: persisted,
       p_defense_rating: calcDefenseRating(state),
       p_ascension_count: state.ascensionCount ?? 0,
     })
@@ -123,7 +128,9 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
 export async function fetchMyStanding(state: GameState): Promise<LeaderboardEntry | null> {
   const asc = state.ascensionCount ?? 0
   const pres = state.prestigeCount ?? 0
-  const bits = state.totalBitsEarned ?? 0
+  // toFixed(0) keeps large values in plain digits — a template literal would render
+  // >=1e21 as "1e+21", which PostgREST rejects as a numeric filter value.
+  const bits = (state.totalBitsEarned ?? 0).toFixed(0)
 
   const { count } = await supabase
     .from('null_byte_leaderboard_public')

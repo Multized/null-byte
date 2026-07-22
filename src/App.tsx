@@ -398,7 +398,11 @@ export default function App() {
       )}
       {showGhostShop && <GhostShopModal onClose={() => setShowGhostShop(false)} />}
       {showAscension && <AscensionModal onClose={() => setShowAscension(false)} />}
-      {showDaily && <DailyModal onClose={() => setShowDaily(false)} />}
+      {/* Daily waits behind any welcome/name/offline modal so they never stack — once
+          those clear (setShowNameModal(false) / setOfflineResult(null)) it appears. */}
+      {showDaily && !showNameModal && !offlineResult && (
+        <DailyModal onClose={() => setShowDaily(false)} />
+      )}
       {showNameModal && <NameModal onClose={() => setShowNameModal(false)} />}
       {offlineResult && (
         <OfflineModal

@@ -171,9 +171,12 @@ interface GameStore extends GameState {
 }
 
 function computeDerived(state: GameState) {
+  // Compute bps once and hand it to calcBitsPerClick, which would otherwise recompute it —
+  // this runs on every state update (10× a second via tick), so the saving is worth it.
+  const bitsPerSecond = calcBitsPerSecond(state)
   return {
-    bitsPerSecond: calcBitsPerSecond(state),
-    bitsPerClick: calcBitsPerClick(state),
+    bitsPerSecond,
+    bitsPerClick: calcBitsPerClick(state, bitsPerSecond),
   }
 }
 

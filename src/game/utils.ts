@@ -228,10 +228,10 @@ export function calcBitsPerSecond(state: GameState): number {
   return total * globalMult
 }
 
-export function calcBitsPerClick(state: GameState): number {
+export function calcBitsPerClick(state: GameState, bps = calcBitsPerSecond(state)): number {
   // bps already includes the global multiplier — apply only the click multipliers on top,
   // otherwise global would be counted twice and clicks would scale with global².
-  const bps = calcBitsPerSecond(state)
+  // Callers that already have bps (e.g. computeDerived) pass it in to avoid recomputing it.
   const base = Math.max(1, bps * 0.02)
   const clickMult = calcClickMultiplier(state)
   return base * clickMult
@@ -412,8 +412,11 @@ export interface DailyStreakInfo {
   reward: number
 }
 
-/** Pure status for the daily streak — mirrors the date logic used by store.claimDaily. */
-export function dailyStreakInfo(state: GameState): DailyStreakInfo {
+/**
+ * Cheap streak status (date logic only) — for the header flame and the dossier, which
+ * need the count every render but not the reward. Mirrors store.claimDaily's date logic.
+ */
+export function dailyStreakStatus(state: GameState): Omit<DailyStreakInfo, 'reward'> {
   const today = localYMD(0)
   const yesterday = localYMD(1)
   const last = state.lastDailyClaim
@@ -422,8 +425,14 @@ export function dailyStreakInfo(state: GameState): DailyStreakInfo {
   const willBe = claimedToday ? state.dailyStreak : continues ? state.dailyStreak + 1 : 1
   const effective = claimedToday ? state.dailyStreak : continues ? state.dailyStreak : 0
   const wasBroken = !claimedToday && !continues && state.dailyStreak > 0
-  const reward = Math.max(50, Math.ceil(calcBitsPerSecond(state) * 300 * Math.min(willBe, 7)))
-  return { claimable: !claimedToday, effective, willBe, wasBroken, reward }
+  return { claimable: !claimedToday, effective, willBe, wasBroken }
+}
+
+/** Full status incl. the reward preview (computes bps) — for the daily modal. */
+export function dailyStreakInfo(state: GameState): DailyStreakInfo {
+  const s = dailyStreakStatus(state)
+  const reward = Math.max(50, Math.ceil(calcBitsPerSecond(state) * 300 * Math.min(s.willBe, 7)))
+  return { ...s, reward }
 }
 
 // ---- The Chip, phase 2: defense ----------------------------------------------
