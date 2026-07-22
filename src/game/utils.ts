@@ -1,9 +1,15 @@
-import type { GameState, PrestigeUpgradeDef, AscensionUpgradeDef } from './types'
+import type { GameState, PrestigeUpgradeDef, AscensionUpgradeDef, ChipModuleDef } from './types'
 import {
   PRODUCERS,
   UPGRADES,
   PRESTIGE_UPGRADES,
   ASCENSION_UPGRADES,
+  CHIP_MODULES,
+  CHIP_SIZE,
+  CHIP_MODULE_MAX_LEVEL,
+  CHIP_BUS_BASE_BONUS,
+  CHIP_BUS_BONUS_PER_LEVEL,
+  CHIP_UNLOCK_BITS,
   COST_SCALING,
   COST_SCALING_REDUCTION_PER_LEVEL,
   DEFAULT_OFFLINE_CAP_HOURS,
@@ -140,6 +146,8 @@ export function calcClickMultiplier(state: GameState): number {
     const times = state.purchasedPrestigeUpgrades[prestigeClickUpgrade.id] ?? 0
     if (times > 0) mult *= Math.pow(prestigeClickUpgrade.value, times)
   }
+  // Chip ALUs — permanent click bonus from the base
+  mult *= 1 + calcChipBonuses(state).click
   return mult
 }
 
@@ -181,6 +189,8 @@ export function calcGlobalMultiplier(state: GameState): number {
   mult *= 1 + prestigeBonusRate(state) * state.prestigeCount
   // Permanent ascension bonus — survives prestige and ascension
   mult *= calcAscensionMultiplier(state)
+  // Chip Cores — permanent production bonus from the base
+  mult *= 1 + calcChipBonuses(state).production
   return mult
 }
 
@@ -315,11 +325,90 @@ export function ascensionUpgradeCost(def: AscensionUpgradeDef, owned: number): n
   return Math.ceil(def.cost * Math.pow(growth, owned))
 }
 
-/** Multiplier on contract bit rewards from the `ghost_contract` prestige upgrade. */
+// ---- The Chip ----------------------------------------------------------------
+
+export function chipModuleDef(type: string): ChipModuleDef | undefined {
+  return CHIP_MODULES.find(m => m.id === type)
+}
+
+export function isChipUnlocked(state: GameState): boolean {
+  return (state.totalBitsEarned ?? 0) >= CHIP_UNLOCK_BITS ||
+    (state.prestigeCount ?? 0) >= 1 ||
+    Object.keys(state.chipCells ?? {}).length > 0
+}
+
+/** Orthogonal neighbour cell indices of a cell on the square die. */
+export function chipNeighbours(index: number): number[] {
+  const r = Math.floor(index / CHIP_SIZE)
+  const c = index % CHIP_SIZE
+  const out: number[] = []
+  if (r > 0) out.push(index - CHIP_SIZE)
+  if (r < CHIP_SIZE - 1) out.push(index + CHIP_SIZE)
+  if (c > 0) out.push(index - 1)
+  if (c < CHIP_SIZE - 1) out.push(index + 1)
+  return out
+}
+
+/** Adjacency bonus a single Bus of the given level grants to each neighbour. */
+export function busBonus(level: number): number {
+  return CHIP_BUS_BASE_BONUS + CHIP_BUS_BONUS_PER_LEVEL * (level - 1)
+}
+
+/**
+ * Combined bus multiplier acting on the module at `index` — one plus the sum of the
+ * bonuses of every adjacent Bus.
+ */
+export function chipBusMultiplier(state: GameState, index: number): number {
+  let mult = 1
+  for (const n of chipNeighbours(index)) {
+    const cell = state.chipCells?.[String(n)]
+    if (cell && chipModuleDef(cell.type)?.effect === 'bus') mult += busBonus(cell.level)
+  }
+  return mult
+}
+
+export interface ChipBonuses { production: number; click: number; offline: number; contract: number }
+
+/** Aggregate chip bonuses, Bus adjacency already applied to each economy module. */
+export function calcChipBonuses(state: GameState): ChipBonuses {
+  const b: ChipBonuses = { production: 0, click: 0, offline: 0, contract: 0 }
+  const cells = state.chipCells
+  if (!cells) return b
+  for (const key of Object.keys(cells)) {
+    const cell = cells[key]
+    const def = chipModuleDef(cell.type)
+    if (!def || def.effect === 'bus') continue
+    const contrib = def.perLevel * cell.level * chipBusMultiplier(state, Number(key))
+    if (def.effect === 'production') b.production += contrib
+    else if (def.effect === 'click') b.click += contrib
+    else if (def.effect === 'offline') b.offline += contrib
+    else if (def.effect === 'contract') b.contract += contrib
+  }
+  return b
+}
+
+/** Bit cost to place a new module of `type`, given how many of that type already exist. */
+export function chipPlaceCost(state: GameState, type: string): number {
+  const def = chipModuleDef(type)
+  if (!def) return Infinity
+  const owned = Object.values(state.chipCells ?? {}).filter(c => c.type === type).length
+  return Math.ceil(def.placeCost * Math.pow(def.placeGrowth, owned))
+}
+
+/** Bit cost to upgrade the module in `cellKey` from its current level to the next. */
+export function chipUpgradeCost(state: GameState, cellKey: string): number {
+  const cell = state.chipCells?.[cellKey]
+  if (!cell) return Infinity
+  const def = chipModuleDef(cell.type)
+  if (!def || cell.level >= CHIP_MODULE_MAX_LEVEL) return Infinity
+  return Math.ceil(def.upgradeCost * Math.pow(def.upgradeGrowth, cell.level - 1))
+}
+
+/** Multiplier on contract bit rewards from the `ghost_contract` prestige upgrade + chip Registers. */
 export function contractRewardMultiplier(state: GameState): number {
   const def = PRESTIGE_UPGRADES.find(u => u.effect === 'contract_bonus')
-  if (!def) return 1
-  return 1 + def.value * (state.purchasedPrestigeUpgrades[def.id] ?? 0)
+  const ghost = def ? def.value * (state.purchasedPrestigeUpgrades[def.id] ?? 0) : 0
+  return 1 + ghost + calcChipBonuses(state).contract
 }
 
 /** How many purchased upgrades survive a prestige (`ghost_keep_upgrades`). */
@@ -353,6 +442,7 @@ export function calcOfflineEfficiency(state: GameState): number {
     base += offlineUpgrade.value * times
   }
   base += artifactOfflineBonus(state)
+  base += calcChipBonuses(state).offline // Chip Caches
   return Math.min(1, base)
 }
 

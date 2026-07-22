@@ -21,18 +21,19 @@ import { OnboardingHint } from './components/OnboardingHint'
 import { EventPopup, type GameEvent, type GameEventType } from './components/EventPopup'
 import { AchievementToastQueue } from './components/AchievementToast'
 import { AchievementsPanel } from './components/AchievementsPanel'
+import { ChipPanel } from './components/ChipPanel'
 import { DataPacketLayer } from './components/DataPacketLayer'
 import { StatsPanel } from './components/StatsPanel'
 import { MatrixRain } from './components/MatrixRain'
 import { DilemmaModal } from './components/DilemmaModal'
 import { rollDilemma } from './game/dilemmas'
 import { initAudio } from './game/sound'
-import { isUpgradeUnlocked, formatBits } from './game/utils'
+import { isUpgradeUnlocked, formatBits, isChipUnlocked } from './game/utils'
 import { UPGRADES } from './game/constants'
 import { emitToast } from './game/toastBus'
 
-type MobileTab = 'run' | 'shop' | 'upgrades' | 'rank'
-type DesktopTab = 'shop' | 'mods' | 'agent'
+type MobileTab = 'run' | 'shop' | 'upgrades' | 'chip' | 'rank'
+type DesktopTab = 'shop' | 'mods' | 'chip' | 'agent'
 
 /**
  * Upgrades a pre-lockdown 6-char sync code to the current 12-char one. The new code is
@@ -209,9 +210,11 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [updateLastActive, playerId, playerName, totalBitsEarned, prestigeCount])
 
+  const chipUnlocked = isChipUnlocked(state)
   const desktopTabs = [
     { id: 'shop' as DesktopTab, label: 'SHOP', icon: '⬡' },
     { id: 'mods' as DesktopTab, label: 'MODS', icon: '⚡', badge: upgradeCount },
+    ...(chipUnlocked ? [{ id: 'chip' as DesktopTab, label: 'CHIP', icon: '▦' }] : []),
     { id: 'agent' as DesktopTab, label: 'AGENT', icon: '◈' },
   ]
 
@@ -283,6 +286,7 @@ export default function App() {
           <div className="flex-1 min-h-0 overflow-y-auto">
             {desktopTab === 'shop' && <ProducerList />}
             {desktopTab === 'mods' && <UpgradePanel />}
+            {desktopTab === 'chip' && <ChipPanel />}
             {desktopTab === 'agent' && (
               <div className="flex flex-col gap-0">
                 <div className="p-2">
@@ -315,6 +319,7 @@ export default function App() {
           )}
           {mobileTab === 'shop' && <ProducerList />}
           {mobileTab === 'upgrades' && <UpgradePanel />}
+          {mobileTab === 'chip' && <ChipPanel />}
           {mobileTab === 'rank' && (
             <div className="space-y-2 p-2">
               <AccountPanel entries={leaderboardEntries} />
@@ -330,8 +335,9 @@ export default function App() {
             { id: 'run' as MobileTab, label: 'RUN', icon: '⌨' },
             { id: 'shop' as MobileTab, label: 'SHOP', icon: '⬡' },
             { id: 'upgrades' as MobileTab, label: 'MODS', icon: '⚡', badge: upgradeCount },
+            ...(chipUnlocked ? [{ id: 'chip' as MobileTab, label: 'CHIP', icon: '▦' }] : []),
             { id: 'rank' as MobileTab, label: 'AGENT', icon: '◈' },
-          ] as const).map(tab => (
+          ] as { id: MobileTab; label: string; icon: string; badge?: number }[]).map(tab => (
             <button
               key={tab.id}
               onClick={() => setMobileTab(tab.id)}
@@ -343,7 +349,7 @@ export default function App() {
             >
               <span className="text-base">{tab.icon}</span>
               <span>{tab.label}</span>
-              {'badge' in tab && tab.badge > 0 && (
+              {tab.badge != null && tab.badge > 0 && (
                 <span className="absolute top-1.5 right-3 min-w-[16px] h-4 px-1 rounded-full
                   bg-cyan-500 text-[#050508] font-mono font-bold text-[9px]
                   flex items-center justify-center">

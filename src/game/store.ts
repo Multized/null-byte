@@ -14,11 +14,13 @@ import {
   calcRootKeysFromAscension,
   getAscensionHeadstartGc,
   ascensionUpgradeCost,
+  chipPlaceCost,
+  chipUpgradeCost,
   isUpgradeUnlocked,
   hasAutoBuy,
   prestigeUpgradeCost,
 } from './utils'
-import { UPGRADES, PRESTIGE_UPGRADES, ASCENSION_UPGRADES, MILESTONE_THRESHOLDS, PRODUCERS, SAVE_EPOCH, OVERCLOCK_MULT, OVERCLOCK_CHARGE_PER_CLICK, OVERCLOCK_DECAY_PER_SEC, OVERCLOCK_DURATION_MS } from './constants'
+import { UPGRADES, PRESTIGE_UPGRADES, ASCENSION_UPGRADES, CHIP_MODULES, CHIP_MODULE_MAX_LEVEL, MILESTONE_THRESHOLDS, PRODUCERS, SAVE_EPOCH, OVERCLOCK_MULT, OVERCLOCK_CHARGE_PER_CLICK, OVERCLOCK_DECAY_PER_SEC, OVERCLOCK_DURATION_MS } from './constants'
 import { findNewlyUnlocked } from './achievements'
 import { rollContract, isContractComplete } from './contracts'
 import { nextAvailableQuest, questById, isStepComplete, artifactContractSlots } from './quests'
@@ -111,6 +113,7 @@ function defaultState(): GameState {
     ascensionCount: 0,
     ghostCreditsAtLastAscension: 0,
     purchasedAscensionUpgrades: {},
+    chipCells: {},
   }
 }
 
@@ -142,6 +145,9 @@ interface GameStore extends GameState {
   ascend: () => void
   buyAscensionUpgrade: (id: string) => boolean
   activateOverclock: () => boolean
+  placeChipModule: (cell: number, type: string) => boolean
+  upgradeChipModule: (cell: number) => boolean
+  removeChipModule: (cell: number) => boolean
   loadState: (state: GameState) => void
   updateLastActive: () => void
   setPlayerName: (name: string, tag: string) => void
@@ -441,6 +447,52 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return true
   },
 
+  placeChipModule: (cell: number, type: string) => {
+    const state = get()
+    const key = String(cell)
+    if (state.chipCells[key]) return false // occupied
+    if (!CHIP_MODULES.some(m => m.id === type)) return false
+    const cost = chipPlaceCost(state, type)
+    if (state.bits < cost) return false
+    set(s => {
+      const chipCells = { ...s.chipCells, [key]: { type, level: 1 } }
+      const next: Partial<GameState> = { bits: s.bits - cost, chipCells }
+      return { ...next, ...computeDerived({ ...s, ...next }) }
+    })
+    get().checkAchievements()
+    return true
+  },
+
+  upgradeChipModule: (cell: number) => {
+    const state = get()
+    const key = String(cell)
+    const existing = state.chipCells[key]
+    if (!existing || existing.level >= CHIP_MODULE_MAX_LEVEL) return false
+    const cost = chipUpgradeCost(state, key)
+    if (state.bits < cost) return false
+    set(s => {
+      const chipCells = { ...s.chipCells, [key]: { ...existing, level: existing.level + 1 } }
+      const next: Partial<GameState> = { bits: s.bits - cost, chipCells }
+      return { ...next, ...computeDerived({ ...s, ...next }) }
+    })
+    get().checkAchievements()
+    return true
+  },
+
+  removeChipModule: (cell: number) => {
+    const state = get()
+    const key = String(cell)
+    if (!state.chipCells[key]) return false
+    // Removing refunds nothing — placement is a commitment, keeps the puzzle meaningful.
+    set(s => {
+      const chipCells = { ...s.chipCells }
+      delete chipCells[key]
+      const next: Partial<GameState> = { chipCells }
+      return { ...next, ...computeDerived({ ...s, ...next }) }
+    })
+    return true
+  },
+
   loadState: (state: GameState) => {
     set({ ...state, ...computeDerived(state) })
   },
@@ -720,6 +772,7 @@ export function getSerializableState(): GameState {
     ascensionCount: s.ascensionCount,
     ghostCreditsAtLastAscension: s.ghostCreditsAtLastAscension,
     purchasedAscensionUpgrades: s.purchasedAscensionUpgrades,
+    chipCells: s.chipCells,
   }
 }
 

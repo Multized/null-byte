@@ -94,6 +94,7 @@ export function loadGame(): GameState | null {
       ascensionCount: data.ascensionCount ?? 0,
       ghostCreditsAtLastAscension: data.ghostCreditsAtLastAscension ?? 0,
       purchasedAscensionUpgrades: data.purchasedAscensionUpgrades ?? {},
+      chipCells: data.chipCells ?? {},
     }
   } catch (e) {
     console.error('Load failed:', e)

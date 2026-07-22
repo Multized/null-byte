@@ -1,4 +1,4 @@
-import type { ProducerDef, UpgradeDef, PrestigeUpgradeDef, AscensionUpgradeDef } from './types'
+import type { ProducerDef, UpgradeDef, PrestigeUpgradeDef, AscensionUpgradeDef, ChipModuleDef } from './types'
 
 export const COST_SCALING = 1.15
 /** Each level of `ghost_cost_scaling` shaves this off COST_SCALING. */
@@ -47,6 +47,17 @@ export const OVERCLOCK_CHARGE_PER_CLICK = 0.028 // ~36 plain clicks to fill; com
 export const OVERCLOCK_DECAY_PER_SEC = 0.05     // drains when idle, so it rewards bursts
 export const OVERCLOCK_DURATION_MS = 15_000
 export const OVERCLOCK_MULT = 5                  // production ×5 while active
+
+// ---- The Chip (base-building metagame, phase 1: solo) -----------------------
+// A permanent 6x6 die you build with bits. Modules feed the existing multipliers, so
+// the chip is a new bit sink AND an accelerator, not a separate silo. It survives every
+// prestige and ascension — the home base between the reset loops.
+export const CHIP_SIZE = 6
+export const CHIP_UNLOCK_BITS = 500_000
+export const CHIP_MODULE_MAX_LEVEL = 10
+// A Bus boosts the contribution of each orthogonally-adjacent economy module.
+export const CHIP_BUS_BASE_BONUS = 0.25
+export const CHIP_BUS_BONUS_PER_LEVEL = 0.15
 
 export const PRODUCERS: ProducerDef[] = [
   {
@@ -1066,5 +1077,42 @@ export const ASCENSION_UPGRADES: AscensionUpgradeDef[] = [
     effect: 'gc_headstart',
     value: 400,
     maxPurchases: 5,
+  },
+]
+
+// Chip modules. `perLevel` is the bonus a module of this type adds per level (before Bus
+// adjacency). Bus has no direct bonus — it multiplies neighbours. Costs are in bits:
+// placing the Nth of a type costs placeCost·placeGrowth^N, upgrading from level L costs
+// upgradeCost·upgradeGrowth^(L-1).
+export const CHIP_MODULES: ChipModuleDef[] = [
+  {
+    id: 'core', name: 'Core', glyph: '⚙', accent: 'cyan',
+    flavor: 'Der Rechenkern. Roh, heiß, unersättlich.',
+    effect: 'production', perLevel: 0.08,
+    placeCost: 2_000_000, placeGrowth: 3.5, upgradeCost: 1_000_000, upgradeGrowth: 2.1,
+  },
+  {
+    id: 'alu', name: 'ALU', glyph: '∑', accent: 'amber',
+    flavor: 'Arithmetik-Einheit. Jeder Klick geht durch sie hindurch.',
+    effect: 'click', perLevel: 0.12,
+    placeCost: 1_000_000, placeGrowth: 3.5, upgradeCost: 600_000, upgradeGrowth: 2.1,
+  },
+  {
+    id: 'cache', name: 'Cache', glyph: '▦', accent: 'emerald',
+    flavor: 'Schneller Speicher. Arbeitet weiter, während du schläfst.',
+    effect: 'offline', perLevel: 0.04,
+    placeCost: 3_000_000, placeGrowth: 3.5, upgradeCost: 1_500_000, upgradeGrowth: 2.1,
+  },
+  {
+    id: 'register', name: 'Register', glyph: '▤', accent: 'purple',
+    flavor: 'Hält, was Aufträge einbringen. Und rundet großzügig auf.',
+    effect: 'contract', perLevel: 0.06,
+    placeCost: 2_000_000, placeGrowth: 3.5, upgradeCost: 1_000_000, upgradeGrowth: 2.1,
+  },
+  {
+    id: 'bus', name: 'Bus', glyph: '╬', accent: 'cyan',
+    flavor: 'Leiterbahn. Verstärkt alles, was sie berührt.',
+    effect: 'bus', perLevel: 0,
+    placeCost: 500_000, placeGrowth: 2.8, upgradeCost: 400_000, upgradeGrowth: 2.4,
   },
 ]

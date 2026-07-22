@@ -61,6 +61,29 @@ export interface AscensionUpgradeDef {
   maxPurchases: number
 }
 
+export type ChipEffect = 'production' | 'click' | 'offline' | 'contract' | 'bus'
+
+export interface ChipModuleDef {
+  id: string
+  name: string
+  glyph: string
+  flavor: string
+  accent: 'cyan' | 'emerald' | 'amber' | 'purple' | 'red'
+  effect: ChipEffect
+  /** Bonus per level for economy modules (Bus has none; it boosts neighbours). */
+  perLevel: number
+  placeCost: number
+  placeGrowth: number
+  upgradeCost: number
+  upgradeGrowth: number
+}
+
+/** One placed module on the chip die. */
+export interface ChipCell {
+  type: string
+  level: number
+}
+
 export type ContractType =
   | 'clicks'
   | 'buy_producers'
@@ -131,4 +154,7 @@ export interface GameState {
   /** totalGhostCreditsEarned at the last ascension; the earn formula measures from here. */
   ghostCreditsAtLastAscension: number
   purchasedAscensionUpgrades: Record<string, number>
+  // ---- The Chip (base-building) ----
+  /** Placed modules keyed by cell index ("0".."35" on a 6×6 die). Permanent across resets. */
+  chipCells: Record<string, ChipCell>
 }
