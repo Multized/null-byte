@@ -61,7 +61,7 @@ export interface AscensionUpgradeDef {
   maxPurchases: number
 }
 
-export type ChipEffect = 'production' | 'click' | 'offline' | 'contract' | 'bus'
+export type ChipEffect = 'production' | 'click' | 'offline' | 'contract' | 'bus' | 'defense' | 'vault'
 
 export interface ChipModuleDef {
   id: string

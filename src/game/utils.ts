@@ -10,6 +10,9 @@ import {
   CHIP_BUS_BASE_BONUS,
   CHIP_BUS_BONUS_PER_LEVEL,
   CHIP_UNLOCK_BITS,
+  CHIP_DEFENSE_TIERS,
+  CHIP_TRAP_PER_LEVEL,
+  CHIP_TRAP_CAP,
   COST_SCALING,
   COST_SCALING_REDUCTION_PER_LEVEL,
   DEFAULT_OFFLINE_CAP_HOURS,
@@ -387,6 +390,42 @@ export function calcChipBonuses(state: GameState): ChipBonuses {
     else if (def.effect === 'contract') b.contract += contrib
   }
   return b
+}
+
+// ---- The Chip, phase 2: defense ----------------------------------------------
+
+/**
+ * Defense rating from Firewall / Honeypot / Vault modules, Bus adjacency applied the
+ * same way it boosts economy modules. Raiding (phase 3) reads this to gate breaches.
+ */
+export function calcDefenseRating(state: GameState): number {
+  const cells = state.chipCells
+  if (!cells) return 0
+  let total = 0
+  for (const key of Object.keys(cells)) {
+    const cell = cells[key]
+    const def = chipModuleDef(cell.type)
+    if (!def || (def.effect !== 'defense' && def.effect !== 'vault')) continue
+    total += def.perLevel * cell.level * chipBusMultiplier(state, Number(key))
+  }
+  return Math.round(total)
+}
+
+export function defenseTier(rating: number): string {
+  let label = CHIP_DEFENSE_TIERS[0].label
+  for (const t of CHIP_DEFENSE_TIERS) if (rating >= t.min) label = t.label
+  return label
+}
+
+/** Chance a raid is auto-repelled, from Honeypot levels (phase 3 mechanic). */
+export function chipTrapChance(state: GameState): number {
+  const cells = state.chipCells
+  if (!cells) return 0
+  let levels = 0
+  for (const key of Object.keys(cells)) {
+    if (cells[key].type === 'honeypot') levels += cells[key].level
+  }
+  return Math.min(CHIP_TRAP_CAP, levels * CHIP_TRAP_PER_LEVEL)
 }
 
 /** Bit cost to place a new module of `type`, given how many of that type already exist. */

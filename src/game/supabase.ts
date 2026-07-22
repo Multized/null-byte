@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { GameState } from './types'
+import { calcDefenseRating } from './utils'
 
 const SUPABASE_URL = 'https://supabase.westmeier.tech'
 // Public by design; all authorisation happens server-side. The client has no direct
@@ -85,6 +86,7 @@ export async function submitScore(state: GameState): Promise<void> {
       p_bits: state.totalBitsEarned,
       p_prestige: state.prestigeCount,
       p_state: state,
+      p_defense_rating: calcDefenseRating(state),
     })
     if (error) console.warn('Score submit failed:', error.message)
   } catch (e) {

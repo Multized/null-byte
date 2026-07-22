@@ -59,6 +59,23 @@ export const CHIP_MODULE_MAX_LEVEL = 10
 export const CHIP_BUS_BASE_BONUS = 0.15
 export const CHIP_BUS_BONUS_PER_LEVEL = 0.05
 
+// ---- The Chip, phase 2: defense ---------------------------------------------
+// Defensive modules build a Defense Rating (bus-boostable, like economy modules).
+// Raiding lands in phase 3; for now this is preparation — and it costs grid cells that
+// could hold economy modules, so fortifying is a real trade against raw production.
+// Rating thresholds label how hard the base is to breach (calibrated against attack
+// power once raiding exists).
+export const CHIP_DEFENSE_TIERS: { min: number; label: string }[] = [
+  { min: 0, label: 'Ungeschützt' },
+  { min: 400, label: 'Befestigt' },
+  { min: 1500, label: 'Verstärkt' },
+  { min: 4000, label: 'Festung' },
+  { min: 10000, label: 'Bollwerk' },
+]
+// Each Honeypot level adds this trap chance (auto-repel a raider), capped.
+export const CHIP_TRAP_PER_LEVEL = 0.02
+export const CHIP_TRAP_CAP = 0.5
+
 export const PRODUCERS: ProducerDef[] = [
   {
     id: 'script',
@@ -1114,5 +1131,24 @@ export const CHIP_MODULES: ChipModuleDef[] = [
     flavor: 'Leiterbahn. Verstärkt alles, was sie berührt.',
     effect: 'bus', perLevel: 0,
     placeCost: 1_000_000, placeGrowth: 3.2, upgradeCost: 500_000, upgradeGrowth: 2.3,
+  },
+  // --- Defensive modules (phase 2). perLevel = defense points per level. ---
+  {
+    id: 'firewall', name: 'Firewall / ICE', glyph: '🛡', accent: 'red',
+    flavor: 'Kaltes Eis um deinen Kern. Wer zu nah kommt, erfriert.',
+    effect: 'defense', perLevel: 150,
+    placeCost: 1_500_000, placeGrowth: 3.2, upgradeCost: 800_000, upgradeGrowth: 2.1,
+  },
+  {
+    id: 'honeypot', name: 'Honeypot', glyph: '◉', accent: 'amber',
+    flavor: 'Ein offener Port, der zu gut aussieht. Genau das ist der Punkt.',
+    effect: 'defense', perLevel: 80,
+    placeCost: 2_500_000, placeGrowth: 3.2, upgradeCost: 1_200_000, upgradeGrowth: 2.1,
+  },
+  {
+    id: 'vault', name: 'Vault', glyph: '◈', accent: 'emerald',
+    flavor: 'Der Tresor im Zentrum. Was hier liegt, holt sich niemand einfach so.',
+    effect: 'vault', perLevel: 60,
+    placeCost: 5_000_000, placeGrowth: 3.5, upgradeCost: 2_500_000, upgradeGrowth: 2.2,
   },
 ]

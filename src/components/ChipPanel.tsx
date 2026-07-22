@@ -8,6 +8,9 @@ import {
   chipUpgradeCost,
   chipBusMultiplier,
   calcChipBonuses,
+  calcDefenseRating,
+  defenseTier,
+  chipTrapChance,
   busBonus,
 } from '../game/utils'
 import { CHIP_MODULES, CHIP_SIZE, CHIP_MODULE_MAX_LEVEL, CHIP_UNLOCK_BITS } from '../game/constants'
@@ -27,7 +30,11 @@ const EFFECT_LABEL: Record<string, string> = {
   offline: 'Offline-Effizienz',
   contract: 'Auftrags-Belohnung',
   bus: 'verstärkt Nachbarn',
+  defense: 'Verteidigung',
+  vault: 'Tresor',
 }
+
+const isDefense = (effect: string) => effect === 'defense' || effect === 'vault'
 
 const CELLS = CHIP_SIZE * CHIP_SIZE
 
@@ -83,6 +90,8 @@ export function ChipPanel() {
   const selDef = sel ? chipModuleDef(sel.type) : undefined
   const selUpCost = selected != null && sel ? chipUpgradeCost(state, String(selected)) : Infinity
   const selBusMult = selected != null && sel ? chipBusMultiplier(state, selected) : 1
+  const defenseRating = calcDefenseRating(state)
+  const trapChance = chipTrapChance(state)
 
   return (
     <div className="p-2 space-y-3">
@@ -98,6 +107,26 @@ export function ChipPanel() {
                 {EFFECT_LABEL[r.key]} <b>+{Math.round(r.v * 100)}%</b>
               </span>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Defense summary */}
+      <div className="card bg-[#0a0a10] border-red-900/30 p-2.5">
+        <div className="flex items-center justify-between">
+          <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">Verteidigung</div>
+          <div className="font-mono text-[10px] text-red-400/60">Raids kommen bald</div>
+        </div>
+        <div className="flex items-baseline gap-2 mt-1">
+          <span className="font-mono text-lg font-semibold" style={{ color: ACCENT.red }}>{defenseRating.toLocaleString('de-DE')}</span>
+          <span className="font-mono text-[11px] text-slate-400">{defenseTier(defenseRating)}</span>
+          {trapChance > 0 && (
+            <span className="font-mono text-[10px] text-amber-400/80 ml-auto">🍯 {Math.round(trapChance * 100)}% Falle</span>
+          )}
+        </div>
+        {defenseRating === 0 && (
+          <div className="font-mono text-[10px] text-slate-600 mt-1">
+            Baue Firewall, Honeypot oder Vault, um deine Basis zu befestigen — bevor das Raiding-Update kommt.
           </div>
         )}
       </div>
@@ -168,6 +197,12 @@ export function ChipPanel() {
             <div className="font-mono text-[11px] text-cyan-400/80">
               Verstärkt jedes angrenzende Modul um +{Math.round(busBonus(sel.level) * 100)}%
             </div>
+          ) : isDefense(selDef.effect) ? (
+            <div className="font-mono text-[11px]" style={{ color: ACCENT[selDef.accent] }}>
+              Verteidigung: +{Math.round(selDef.perLevel * sel.level * selBusMult)}
+              {selBusMult > 1 && <span className="text-cyan-300"> (Bus ×{selBusMult.toFixed(2)})</span>}
+              {selDef.id === 'honeypot' && <span className="text-amber-400/80"> · +{Math.round(sel.level * 2)}% Falle</span>}
+            </div>
           ) : (
             <div className="font-mono text-[11px]" style={{ color: ACCENT[selDef.accent] }}>
               Beitrag: +{(selDef.perLevel * sel.level * selBusMult * 100).toFixed(1)}%
@@ -216,7 +251,10 @@ export function ChipPanel() {
                 <span style={{ color: ACCENT[m.accent], fontSize: '1.05rem', width: '1.4rem', textAlign: 'center' }}>{m.glyph}</span>
                 <div className="flex-1 min-w-0">
                   <div className="font-mono text-xs text-slate-200">{m.name}</div>
-                  <div className="font-mono text-[10px] text-slate-500">{EFFECT_LABEL[m.effect]}{m.effect !== 'bus' ? ` +${Math.round(m.perLevel * 100)}%/Lv` : ''}</div>
+                  <div className="font-mono text-[10px] text-slate-500">
+                    {EFFECT_LABEL[m.effect]}
+                    {m.effect === 'bus' ? '' : isDefense(m.effect) ? ` +${m.perLevel}/Lv` : ` +${Math.round(m.perLevel * 100)}%/Lv`}
+                  </div>
                 </div>
                 <div className="font-mono text-[11px] shrink-0" style={{ color: affordable ? ACCENT[m.accent] : '#64748b' }}>
                   {formatBits(cost)}
