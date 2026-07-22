@@ -95,6 +95,60 @@ export function ChipPanel() {
 
   return (
     <div className="p-2 space-y-3">
+      {/* The die comes first so it never shifts — everything below it (bonus + defense
+          summaries, inspector) reflows when you place a module, and reflow above the die
+          is exactly what made the grid jump under the cursor. */}
+      <div className="mx-auto" style={{ maxWidth: 'min(92vw, 340px)' }}>
+        <div
+          className="grid gap-1 p-2 rounded-md bg-[#080810] border border-slate-800/60"
+          style={{
+            // minmax(0, 1fr) on BOTH axes locks every cell to an equal share of the square.
+            // Plain `1fr` carries an implicit `auto` (min-content) floor, so a filled cell
+            // (glyph + level label) is taller than an empty one and the rows would reflow —
+            // that was the shifting. Explicit equal rows + a 0 floor keep the grid fixed.
+            gridTemplateColumns: `repeat(${CHIP_SIZE}, minmax(0, 1fr))`,
+            gridTemplateRows: `repeat(${CHIP_SIZE}, minmax(0, 1fr))`,
+            aspectRatio: '1 / 1',
+          }}
+        >
+          {Array.from({ length: CELLS }, (_, i) => {
+            const cell = chipCells[String(i)]
+            const def = cell ? chipModuleDef(cell.type) : undefined
+            const color = def ? ACCENT[def.accent] : undefined
+            const isSel = selected === i
+            const boosted = cell && def && def.effect !== 'bus' && chipBusMultiplier(state, i) > 1
+            return (
+              <button
+                key={i}
+                onClick={() => handleCell(i)}
+                className="relative rounded-sm flex flex-col items-center justify-center transition-all duration-100 overflow-hidden"
+                style={{
+                  minWidth: 0,
+                  minHeight: 0,
+                  background: color ? `color-mix(in srgb, ${color} 14%, #0a0a12)` : '#0c0c14',
+                  border: `1px solid ${isSel ? '#e2e8f0' : color ? `color-mix(in srgb, ${color} 50%, transparent)` : 'rgba(51,65,85,0.4)'}`,
+                  boxShadow: color ? `0 0 10px -4px ${color}${isSel ? ', 0 0 0 1px #e2e8f0 inset' : ''}` : undefined,
+                  cursor: cell || tool ? 'pointer' : 'default',
+                }}
+                title={def ? `${def.name} · Lv ${cell!.level}` : tool ? `${chipModuleDef(tool)?.name} platzieren` : 'leer'}
+              >
+                {def ? (
+                  <>
+                    <span style={{ color, fontSize: 'clamp(0.7rem, 3.4vw, 1.05rem)', lineHeight: 1 }}>{def.glyph}</span>
+                    <span className="font-mono text-slate-500" style={{ fontSize: '0.5rem' }}>L{cell!.level}</span>
+                    {boosted && (
+                      <span className="absolute top-0 right-0.5 text-cyan-300" style={{ fontSize: '0.5rem' }}>▲</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-slate-800" style={{ fontSize: '0.6rem' }}>·</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
       {/* Bonus summary */}
       <div className="card bg-[#0a0a10] border-slate-800/50 p-2.5">
         <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest mb-1.5">Chip-Boni aktiv</div>
@@ -129,48 +183,6 @@ export function ChipPanel() {
             Baue Firewall, Honeypot oder Vault, um deine Basis zu befestigen — bevor das Raiding-Update kommt.
           </div>
         )}
-      </div>
-
-      {/* The die */}
-      <div className="mx-auto" style={{ maxWidth: 'min(92vw, 340px)' }}>
-        <div
-          className="grid gap-1 p-2 rounded-md bg-[#080810] border border-slate-800/60"
-          style={{ gridTemplateColumns: `repeat(${CHIP_SIZE}, 1fr)`, aspectRatio: '1 / 1' }}
-        >
-          {Array.from({ length: CELLS }, (_, i) => {
-            const cell = chipCells[String(i)]
-            const def = cell ? chipModuleDef(cell.type) : undefined
-            const color = def ? ACCENT[def.accent] : undefined
-            const isSel = selected === i
-            const boosted = cell && def && def.effect !== 'bus' && chipBusMultiplier(state, i) > 1
-            return (
-              <button
-                key={i}
-                onClick={() => handleCell(i)}
-                className="relative rounded-sm flex flex-col items-center justify-center transition-all duration-100"
-                style={{
-                  background: color ? `color-mix(in srgb, ${color} 14%, #0a0a12)` : '#0c0c14',
-                  border: `1px solid ${isSel ? '#e2e8f0' : color ? `color-mix(in srgb, ${color} 50%, transparent)` : 'rgba(51,65,85,0.4)'}`,
-                  boxShadow: color ? `0 0 10px -4px ${color}${isSel ? ', 0 0 0 1px #e2e8f0 inset' : ''}` : undefined,
-                  cursor: cell || tool ? 'pointer' : 'default',
-                }}
-                title={def ? `${def.name} · Lv ${cell!.level}` : tool ? `${chipModuleDef(tool)?.name} platzieren` : 'leer'}
-              >
-                {def ? (
-                  <>
-                    <span style={{ color, fontSize: 'clamp(0.7rem, 3.4vw, 1.05rem)', lineHeight: 1 }}>{def.glyph}</span>
-                    <span className="font-mono text-slate-500" style={{ fontSize: '0.5rem' }}>L{cell!.level}</span>
-                    {boosted && (
-                      <span className="absolute top-0 right-0.5 text-cyan-300" style={{ fontSize: '0.5rem' }}>▲</span>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-slate-800" style={{ fontSize: '0.6rem' }}>·</span>
-                )}
-              </button>
-            )
-          })}
-        </div>
       </div>
 
       {/* Selected module inspector */}
