@@ -392,6 +392,40 @@ export function calcChipBonuses(state: GameState): ChipBonuses {
   return b
 }
 
+// ---- Daily streak ------------------------------------------------------------
+
+function localYMD(offsetDays = 0): string {
+  const d = new Date(Date.now() - offsetDays * 86_400_000)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+export interface DailyStreakInfo {
+  /** True if today's bonus hasn't been claimed yet. */
+  claimable: boolean
+  /** Streak to show right now: the live count, or 0 if it lapsed and isn't yet re-claimed. */
+  effective: number
+  /** What the streak becomes after claiming today. */
+  willBe: number
+  /** True when the streak lapsed (a day was skipped) and claiming today restarts it. */
+  wasBroken: boolean
+  /** Reward (bits) the claim would grant. */
+  reward: number
+}
+
+/** Pure status for the daily streak — mirrors the date logic used by store.claimDaily. */
+export function dailyStreakInfo(state: GameState): DailyStreakInfo {
+  const today = localYMD(0)
+  const yesterday = localYMD(1)
+  const last = state.lastDailyClaim
+  const claimedToday = last === today
+  const continues = last === yesterday
+  const willBe = claimedToday ? state.dailyStreak : continues ? state.dailyStreak + 1 : 1
+  const effective = claimedToday ? state.dailyStreak : continues ? state.dailyStreak : 0
+  const wasBroken = !claimedToday && !continues && state.dailyStreak > 0
+  const reward = Math.max(50, Math.ceil(calcBitsPerSecond(state) * 300 * Math.min(willBe, 7)))
+  return { claimable: !claimedToday, effective, willBe, wasBroken, reward }
+}
+
 // ---- The Chip, phase 2: defense ----------------------------------------------
 
 /**

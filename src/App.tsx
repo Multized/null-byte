@@ -13,6 +13,7 @@ import { UpgradePanel } from './components/UpgradePanel'
 import { PrestigeModal } from './components/PrestigeModal'
 import { GhostShopModal } from './components/GhostShopModal'
 import { AscensionModal } from './components/AscensionModal'
+import { DailyModal } from './components/DailyModal'
 import { OfflineModal } from './components/OfflineModal'
 import { NameModal } from './components/NameModal'
 import { Leaderboard, type LeaderboardEntry } from './components/Leaderboard'
@@ -28,9 +29,8 @@ import { MatrixRain } from './components/MatrixRain'
 import { DilemmaModal } from './components/DilemmaModal'
 import { rollDilemma } from './game/dilemmas'
 import { initAudio } from './game/sound'
-import { isUpgradeUnlocked, formatBits, isChipUnlocked } from './game/utils'
+import { isUpgradeUnlocked, isChipUnlocked, dailyStreakInfo } from './game/utils'
 import { UPGRADES } from './game/constants'
-import { emitToast } from './game/toastBus'
 
 type MobileTab = 'run' | 'shop' | 'upgrades' | 'chip' | 'rank'
 type DesktopTab = 'shop' | 'mods' | 'chip' | 'agent'
@@ -66,6 +66,7 @@ export default function App() {
   const [showPrestige, setShowPrestige] = useState(false)
   const [showGhostShop, setShowGhostShop] = useState(false)
   const [showAscension, setShowAscension] = useState(false)
+  const [showDaily, setShowDaily] = useState(false)
   const [showNameModal, setShowNameModal] = useState(false)
   const [offlineResult, setOfflineResult] = useState<{ result: OfflineResult; state: GameState } | null>(null)
   const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([])
@@ -113,18 +114,11 @@ export default function App() {
     // Assign the first story operation right away
     useGameStore.getState().syncQuest()
 
-    // Daily streak — auto-claimed once per calendar day, announced via toast
+    // Daily streak — shown as an active check-in prompt on the first login of the day,
+    // once any welcome/offline modal has cleared. Claiming persists immediately.
     setTimeout(() => {
-      const daily = useGameStore.getState().claimDaily()
-      if (daily) {
-        emitToast({
-          kind: 'info',
-          icon: '🔥',
-          title: `Daily Streak · Tag ${daily.streak}`,
-          text: `+${formatBits(daily.reward)} Login-Bonus`,
-        })
-      }
-    }, 1200)
+      if (dailyStreakInfo(useGameStore.getState()).claimable) setShowDaily(true)
+    }, 1400)
   }, [loadState])
 
   // Game loop
@@ -404,6 +398,7 @@ export default function App() {
       )}
       {showGhostShop && <GhostShopModal onClose={() => setShowGhostShop(false)} />}
       {showAscension && <AscensionModal onClose={() => setShowAscension(false)} />}
+      {showDaily && <DailyModal onClose={() => setShowDaily(false)} />}
       {showNameModal && <NameModal onClose={() => setShowNameModal(false)} />}
       {offlineResult && (
         <OfflineModal
