@@ -56,8 +56,8 @@ export const CHIP_SIZE = 6
 export const CHIP_UNLOCK_BITS = 500_000
 export const CHIP_MODULE_MAX_LEVEL = 10
 // A Bus boosts the contribution of each orthogonally-adjacent economy module.
-export const CHIP_BUS_BASE_BONUS = 0.25
-export const CHIP_BUS_BONUS_PER_LEVEL = 0.15
+export const CHIP_BUS_BASE_BONUS = 0.15
+export const CHIP_BUS_BONUS_PER_LEVEL = 0.05
 
 export const PRODUCERS: ProducerDef[] = [
   {
@@ -1088,31 +1088,31 @@ export const CHIP_MODULES: ChipModuleDef[] = [
   {
     id: 'core', name: 'Core', glyph: '⚙', accent: 'cyan',
     flavor: 'Der Rechenkern. Roh, heiß, unersättlich.',
-    effect: 'production', perLevel: 0.08,
+    effect: 'production', perLevel: 0.02,
     placeCost: 2_000_000, placeGrowth: 3.5, upgradeCost: 1_000_000, upgradeGrowth: 2.1,
   },
   {
     id: 'alu', name: 'ALU', glyph: '∑', accent: 'amber',
     flavor: 'Arithmetik-Einheit. Jeder Klick geht durch sie hindurch.',
-    effect: 'click', perLevel: 0.12,
+    effect: 'click', perLevel: 0.03,
     placeCost: 1_000_000, placeGrowth: 3.5, upgradeCost: 600_000, upgradeGrowth: 2.1,
   },
   {
     id: 'cache', name: 'Cache', glyph: '▦', accent: 'emerald',
     flavor: 'Schneller Speicher. Arbeitet weiter, während du schläfst.',
-    effect: 'offline', perLevel: 0.04,
+    effect: 'offline', perLevel: 0.012,
     placeCost: 3_000_000, placeGrowth: 3.5, upgradeCost: 1_500_000, upgradeGrowth: 2.1,
   },
   {
     id: 'register', name: 'Register', glyph: '▤', accent: 'purple',
     flavor: 'Hält, was Aufträge einbringen. Und rundet großzügig auf.',
-    effect: 'contract', perLevel: 0.06,
+    effect: 'contract', perLevel: 0.018,
     placeCost: 2_000_000, placeGrowth: 3.5, upgradeCost: 1_000_000, upgradeGrowth: 2.1,
   },
   {
     id: 'bus', name: 'Bus', glyph: '╬', accent: 'cyan',
     flavor: 'Leiterbahn. Verstärkt alles, was sie berührt.',
     effect: 'bus', perLevel: 0,
-    placeCost: 500_000, placeGrowth: 2.8, upgradeCost: 400_000, upgradeGrowth: 2.4,
+    placeCost: 1_000_000, placeGrowth: 3.2, upgradeCost: 500_000, upgradeGrowth: 2.3,
   },
 ]

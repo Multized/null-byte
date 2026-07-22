@@ -355,16 +355,18 @@ export function busBonus(level: number): number {
 }
 
 /**
- * Combined bus multiplier acting on the module at `index` — one plus the sum of the
- * bonuses of every adjacent Bus.
+ * Bus multiplier acting on the module at `index` — one plus the bonus of the *best*
+ * adjacent Bus. Only the strongest neighbour counts (not the sum), so buses are about
+ * coverage, not surrounding a cell with four of them. That keeps placement an honest
+ * routing puzzle instead of a degenerate "wall a core in with buses" exploit.
  */
 export function chipBusMultiplier(state: GameState, index: number): number {
-  let mult = 1
+  let best = 0
   for (const n of chipNeighbours(index)) {
     const cell = state.chipCells?.[String(n)]
-    if (cell && chipModuleDef(cell.type)?.effect === 'bus') mult += busBonus(cell.level)
+    if (cell && chipModuleDef(cell.type)?.effect === 'bus') best = Math.max(best, busBonus(cell.level))
   }
-  return mult
+  return 1 + best
 }
 
 export interface ChipBonuses { production: number; click: number; offline: number; contract: number }
