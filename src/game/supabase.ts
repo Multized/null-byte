@@ -17,9 +17,14 @@ export interface LeaderboardEntry {
   name_tag: string
   total_bits_earned: number
   prestige_count: number
+  ascension_count: number
+  defense_rating: number
   updated_at: string
   active_title: string | null
 }
+
+const LEADERBOARD_COLUMNS =
+  'player_id, name, name_tag, total_bits_earned, prestige_count, ascension_count, defense_rating, updated_at, active_title'
 
 /** True for the old 6-char sync codes, which are weak enough to be worth rotating. */
 export function isLegacySyncCode(code: string): boolean {
@@ -87,6 +92,7 @@ export async function submitScore(state: GameState): Promise<void> {
       p_prestige: state.prestigeCount,
       p_state: state,
       p_defense_rating: calcDefenseRating(state),
+      p_ascension_count: state.ascensionCount ?? 0,
     })
     if (error) console.warn('Score submit failed:', error.message)
   } catch (e) {
@@ -95,14 +101,47 @@ export async function submitScore(state: GameState): Promise<void> {
 }
 
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
+  // Progression order: ascension first, then prestige, then bits (which reset per
+  // prestige and so would rank a fresh veteran near the bottom if used as the primary key).
   const { data, error } = await supabase
     .from('null_byte_leaderboard_public')
-    .select('player_id, name, name_tag, total_bits_earned, prestige_count, updated_at, active_title')
+    .select(LEADERBOARD_COLUMNS)
+    .order('ascension_count', { ascending: false })
+    .order('prestige_count', { ascending: false })
     .order('total_bits_earned', { ascending: false })
     .limit(50)
 
   if (error || !data) return []
   return data.map((row, i) => ({ ...row, rank: i + 1 } as LeaderboardEntry))
+}
+
+/**
+ * The player's own standing when they're outside the fetched top slice: their public
+ * row plus an exact rank (count of everyone ranked strictly above, +1). Returns null if
+ * the player has no row yet.
+ */
+export async function fetchMyStanding(state: GameState): Promise<LeaderboardEntry | null> {
+  const asc = state.ascensionCount ?? 0
+  const pres = state.prestigeCount ?? 0
+  const bits = state.totalBitsEarned ?? 0
+
+  const { count } = await supabase
+    .from('null_byte_leaderboard_public')
+    .select('player_id', { count: 'exact', head: true })
+    .or(
+      `ascension_count.gt.${asc},` +
+      `and(ascension_count.eq.${asc},prestige_count.gt.${pres}),` +
+      `and(ascension_count.eq.${asc},prestige_count.eq.${pres},total_bits_earned.gt.${bits})`,
+    )
+
+  const { data } = await supabase
+    .from('null_byte_leaderboard_public')
+    .select(LEADERBOARD_COLUMNS)
+    .eq('player_id', state.playerId)
+    .maybeSingle()
+
+  if (!data) return null
+  return { ...(data as object), rank: (count ?? 0) + 1 } as LeaderboardEntry
 }
 
 export async function loadFromSyncCode(code: string): Promise<GameState | null> {
