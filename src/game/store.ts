@@ -16,11 +16,12 @@ import {
   ascensionUpgradeCost,
   chipPlaceCost,
   chipUpgradeCost,
+  regenOverdriveEnergy,
   isUpgradeUnlocked,
   hasAutoBuy,
   prestigeUpgradeCost,
 } from './utils'
-import { UPGRADES, PRESTIGE_UPGRADES, ASCENSION_UPGRADES, CHIP_MODULES, CHIP_MODULE_MAX_LEVEL, MILESTONE_THRESHOLDS, PRODUCERS, SAVE_EPOCH, OVERCLOCK_MULT, OVERCLOCK_CHARGE_PER_CLICK, OVERCLOCK_DECAY_PER_SEC, OVERCLOCK_DURATION_MS } from './constants'
+import { UPGRADES, PRESTIGE_UPGRADES, ASCENSION_UPGRADES, CHIP_MODULES, CHIP_MODULE_MAX_LEVEL, MILESTONE_THRESHOLDS, PRODUCERS, SAVE_EPOCH, OVERCLOCK_MULT, OVERCLOCK_DURATION_MS, OVERDRIVE_ENERGY_MAX } from './constants'
 import { findNewlyUnlocked } from './achievements'
 import { rollContract, isContractComplete } from './contracts'
 import { nextAvailableQuest, questById, isStepComplete, artifactContractSlots } from './quests'
@@ -114,6 +115,8 @@ function defaultState(): GameState {
     ghostCreditsAtLastAscension: 0,
     purchasedAscensionUpgrades: {},
     chipCells: {},
+    overdriveEnergy: OVERDRIVE_ENERGY_MAX,
+    lastEnergyRegen: Date.now(),
   }
 }
 
@@ -131,8 +134,7 @@ interface GameStore extends GameState {
   penaltyMultiplier: number
   penaltyExpiresAt: number
 
-  // Overclock — active mid-run burst (not persisted)
-  overclockCharge: number
+  // Overdrive — active window end (not persisted; energy itself IS persisted in GameState)
   overclockActiveUntil: number
 
   // Actions
@@ -189,7 +191,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   eventExpiresAt: 0,
   penaltyMultiplier: 1,
   penaltyExpiresAt: 0,
-  overclockCharge: 0,
   overclockActiveUntil: 0,
 
   click: (comboMultiplier = 1) => {
@@ -198,10 +199,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const clickMult = now < state.eventExpiresAt ? state.eventClickMultiplier : 1
     const overclockMult = now < state.overclockActiveUntil ? OVERCLOCK_MULT : 1
     const bpc = calcBitsPerClick(state) * clickMult * overclockMult * comboMultiplier
-    // A harder combo charges the overclock faster, so skilled clicking pays twice.
-    const chargeGain = state.overclockActiveUntil > now
-      ? 0 // don't refill while it's already running
-      : OVERCLOCK_CHARGE_PER_CLICK * comboMultiplier
     set(s => {
       const next: Partial<GameState> = {
         bits: s.bits + bpc,
@@ -210,9 +207,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })
-    if (chargeGain > 0) {
-      set(s => ({ overclockCharge: Math.min(1, s.overclockCharge + chargeGain) }))
-    }
     get().checkAchievements()
     return bpc
   },
@@ -228,13 +222,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state.penaltyExpiresAt > 0 && now >= state.penaltyExpiresAt) {
       set({ penaltyMultiplier: 1, penaltyExpiresAt: 0 })
     }
-    // Overclock charge drains while idle so it rewards bursts, not lifetime click count.
-    // It never drains while the boost is running, and — importantly — it latches once full:
-    // reaching 100% must stay "ready" until the player activates it, otherwise the ready
-    // window would evaporate the instant they stop clicking.
-    if (state.overclockActiveUntil <= now && state.overclockCharge > 0 && state.overclockCharge < 1) {
-      const drained = Math.max(0, state.overclockCharge - OVERCLOCK_DECAY_PER_SEC * delta)
-      if (drained !== state.overclockCharge) set({ overclockCharge: drained })
+    // Materialise Overdrive energy regen. Only writes when a whole interval has elapsed
+    // (~every 15 min, incl. offline time caught up on the first tick after load), so this
+    // is effectively free per tick.
+    if (state.overdriveEnergy < OVERDRIVE_ENERGY_MAX) {
+      const r = regenOverdriveEnergy(state.overdriveEnergy, state.lastEnergyRegen, now)
+      if (r.energy !== state.overdriveEnergy) set({ overdriveEnergy: r.energy, lastEnergyRegen: r.lastRegen })
     }
     const bpsMult = now < state.eventExpiresAt ? state.eventBpsMultiplier : 1
     const penaltyMult = now < state.penaltyExpiresAt ? state.penaltyMultiplier : 1
@@ -445,8 +438,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   activateOverclock: () => {
     const state = get()
-    if (state.overclockCharge < 1 || Date.now() < state.overclockActiveUntil) return false
-    set({ overclockCharge: 0, overclockActiveUntil: Date.now() + OVERCLOCK_DURATION_MS })
+    const now = Date.now()
+    if (now < state.overclockActiveUntil) return false // already running
+    // Catch up regen first so a point that just refilled is spendable.
+    const { energy, lastRegen } = regenOverdriveEnergy(state.overdriveEnergy, state.lastEnergyRegen, now)
+    if (energy < 1) return false
+    set({
+      overdriveEnergy: energy - 1,
+      lastEnergyRegen: lastRegen, // regen already set the clock correctly (now if it was full)
+      overclockActiveUntil: now + OVERCLOCK_DURATION_MS,
+    })
     return true
   },
 
@@ -519,7 +520,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       eventExpiresAt: 0,
       penaltyMultiplier: 1,
       penaltyExpiresAt: 0,
-      overclockCharge: 0,
       overclockActiveUntil: 0,
     })
     get().syncQuest()
@@ -776,6 +776,8 @@ export function getSerializableState(): GameState {
     ghostCreditsAtLastAscension: s.ghostCreditsAtLastAscension,
     purchasedAscensionUpgrades: s.purchasedAscensionUpgrades,
     chipCells: s.chipCells,
+    overdriveEnergy: s.overdriveEnergy,
+    lastEnergyRegen: s.lastEnergyRegen,
   }
 }
 

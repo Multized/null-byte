@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useGameStore } from '../game/store'
-import { formatBits, formatRate, calcGlobalMultiplier, calcGhostCreditsFromBits, prestigeRequirement, canAscend } from '../game/utils'
+import { formatBits, formatRate, calcGlobalMultiplier, calcGhostCreditsFromBits, prestigeRequirement, canAscend, overdriveEnergyInfo } from '../game/utils'
 import { artifactComboWindowMs } from '../game/quests'
 import { OVERCLOCK_MULT } from '../game/constants'
 import { playSound } from '../game/sound'
@@ -30,6 +30,13 @@ let floatIdCounter = 0
 const COMBO_WINDOW_MS = 800
 const COMBO_CAP = 20
 
+/** "12m 03s" / "45s" — time until the next Overdrive energy point. */
+function formatEnergyEta(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000))
+  if (s < 60) return `${s}s`
+  return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`
+}
+
 interface Props {
   onPrestigeClick: () => void
   onGhostShopClick: () => void
@@ -57,7 +64,6 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick, onAscensionClick 
   const totalBitsEarned = useGameStore(s => s.totalBitsEarned)
   const ghostCredits = useGameStore(s => s.ghostCredits)
   const prestigeCount = useGameStore(s => s.prestigeCount)
-  const overclockCharge = useGameStore(s => s.overclockCharge)
   const overclockActiveUntil = useGameStore(s => s.overclockActiveUntil)
   const activateOverclock = useGameStore(s => s.activateOverclock)
   const ascensionCount = useGameStore(s => s.ascensionCount)
@@ -146,18 +152,18 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick, onAscensionClick 
   const showPrestigeTeaser = !canPrestige && prestigeCount === 0 && prestigeProgress > 0.02
 
   const overclockActive = overclockActiveUntil > now
-  const overclockReady = overclockCharge >= 1 && !overclockActive
   const overclockSecondsLeft = overclockActive ? Math.ceil((overclockActiveUntil - now) / 1000) : 0
+  const energy = overdriveEnergyInfo(state, now)
+  const overclockReady = energy.energy >= 1 && !overclockActive
   const ascendReady = canAscend(state)
   const showAscensionEntry = ascendReady || ascensionCount > 0
 
-  // Keep the overclock countdown / charge bar ticking even when nothing else changes.
+  // Keep the countdown (active window / next-energy timer) ticking every second.
   const [, forceTick] = useState(0)
   useEffect(() => {
-    if (!overclockActive && overclockCharge <= 0) return
-    const id = setInterval(() => forceTick(n => n + 1), 200)
+    const id = setInterval(() => forceTick(n => n + 1), 1000)
     return () => clearInterval(id)
-  }, [overclockActive, overclockCharge])
+  }, [])
 
   return (
     <div className="flex flex-col items-center w-full max-w-md px-6 pt-4 md:pt-5 pb-6 gap-5">
@@ -300,9 +306,9 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick, onAscensionClick 
         ) : null}
       </div>
 
-      {/* Overdrive — active burst charged by clicking. Rewards attention mid-run.
-          Internally still `overclock*`; labelled Overdrive to avoid clashing with the
-          existing random "System Overclock" event. */}
+      {/* Overdrive — a rationed ×5 burst. Each use spends 1 of a capped energy pool that
+          refills slowly (and offline). Labelled Overdrive to avoid clashing with the
+          existing random "System Overclock" event; the store fields are still `overclock*`. */}
       <div className="w-full">
         {overclockActive ? (
           <div className="w-full rounded-lg border border-amber-500/60 bg-amber-950/20 px-4 py-2.5 flex items-center gap-3 animate-pulse">
@@ -319,7 +325,7 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick, onAscensionClick 
             className={`
               w-full rounded-lg border px-4 py-2 transition-all duration-150
               ${overclockReady
-                ? 'border-amber-500/60 bg-amber-950/20 hover:bg-amber-900/30 cursor-pointer animate-pulse'
+                ? 'border-amber-500/60 bg-amber-950/20 hover:bg-amber-900/30 cursor-pointer'
                 : 'border-slate-800/50 bg-[#08080f]/60 cursor-default'
               }
             `}
@@ -327,15 +333,23 @@ export function ClickArea({ onPrestigeClick, onGhostShopClick, onAscensionClick 
             <div className="flex items-center gap-2 mb-1.5">
               <span className={`text-sm leading-none ${overclockReady ? '' : 'opacity-40 grayscale'}`}>🔋</span>
               <span className={`flex-1 text-left font-mono text-[10px] uppercase tracking-widest ${overclockReady ? 'text-amber-400' : 'text-slate-600'}`}>
-                {overclockReady ? `Overdrive bereit — antippen für ×${OVERCLOCK_MULT}` : 'Overdrive — klicke zum Aufladen'}
+                {overclockReady
+                  ? `Overdrive bereit — ×${OVERCLOCK_MULT} für 15s`
+                  : `Nachladen: ${formatEnergyEta(energy.msToNext)}`}
               </span>
-              <span className="font-mono text-[10px] text-slate-600">{Math.floor(overclockCharge * 100)}%</span>
+              <span className={`font-mono text-[10px] tabular-nums ${overclockReady ? 'text-amber-300' : 'text-slate-600'}`}>
+                {energy.energy}/{energy.max}
+              </span>
             </div>
-            <div className="w-full h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
-              <div
-                className={`h-full transition-all duration-150 ${overclockReady ? 'bg-amber-400/80' : 'bg-amber-600/40'}`}
-                style={{ width: `${overclockCharge * 100}%` }}
-              />
+            {/* Energy pips */}
+            <div className="w-full flex items-center gap-1">
+              {Array.from({ length: energy.max }, (_, i) => (
+                <span
+                  key={i}
+                  className="flex-1 h-1.5 rounded-full transition-colors duration-200"
+                  style={{ background: i < energy.energy ? 'rgba(251,191,36,0.8)' : 'rgba(51,65,85,0.5)' }}
+                />
+              ))}
             </div>
           </button>
         )}

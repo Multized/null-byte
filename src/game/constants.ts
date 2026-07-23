@@ -42,11 +42,14 @@ export const RK_CAP_PER_ASCENSION = 5
 // global bonus, on top of whatever the ascension shop adds.
 export const RK_GLOBAL_PER_KEY = 0.25
 
-// ---- Overclock (active mid-run burst) ---------------------------------------
-export const OVERCLOCK_CHARGE_PER_CLICK = 0.028 // ~36 plain clicks to fill; combos fill faster
-export const OVERCLOCK_DECAY_PER_SEC = 0.05     // drains when idle, so it rewards bursts
+// ---- Overdrive (active mid-run burst, gated by energy) ----------------------
+// Formerly a click-charged bar, which let a fast clicker keep ×5 up almost
+// continuously — far too strong. Now each activation spends 1 of a capped energy pool
+// that refills slowly (and offline), so the boost is rationed.
 export const OVERCLOCK_DURATION_MS = 15_000
-export const OVERCLOCK_MULT = 5                  // production ×5 while active
+export const OVERCLOCK_MULT = 5                       // production ×5 while active
+export const OVERDRIVE_ENERGY_MAX = 10
+export const OVERDRIVE_ENERGY_REGEN_MS = 15 * 60_000  // +1 energy every 15 minutes
 
 // ---- The Chip (base-building metagame, phase 1: solo) -----------------------
 // A permanent 6x6 die you build with bits. Modules feed the existing multipliers, so

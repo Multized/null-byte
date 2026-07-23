@@ -29,6 +29,8 @@ import {
   RK_CAP_BASE,
   RK_CAP_PER_ASCENSION,
   RK_GLOBAL_PER_KEY,
+  OVERDRIVE_ENERGY_MAX,
+  OVERDRIVE_ENERGY_REGEN_MS,
 } from './constants'
 import { calcAchievementMultiplier } from './achievements'
 import { artifactGlobalMultiplier, artifactOfflineBonus } from './quests'
@@ -390,6 +392,41 @@ export function calcChipBonuses(state: GameState): ChipBonuses {
     else if (def.effect === 'contract') b.contract += contrib
   }
   return b
+}
+
+// ---- Overdrive energy --------------------------------------------------------
+
+/**
+ * Standard energy-regen accounting: consume whole elapsed intervals into energy (capped),
+ * preserving the leftover time. While full, the clock idles at `now` so no backlog builds.
+ * Works offline because it's driven purely by elapsed real time.
+ */
+export function regenOverdriveEnergy(
+  energy: number,
+  lastRegen: number,
+  now: number,
+): { energy: number; lastRegen: number } {
+  if (energy >= OVERDRIVE_ENERGY_MAX) return { energy: OVERDRIVE_ENERGY_MAX, lastRegen: now }
+  const gained = Math.floor((now - lastRegen) / OVERDRIVE_ENERGY_REGEN_MS)
+  if (gained <= 0) return { energy, lastRegen }
+  const next = Math.min(OVERDRIVE_ENERGY_MAX, energy + gained)
+  // Advance the clock by the intervals actually consumed; snap to `now` once full.
+  const lr = next >= OVERDRIVE_ENERGY_MAX ? now : lastRegen + gained * OVERDRIVE_ENERGY_REGEN_MS
+  return { energy: next, lastRegen: lr }
+}
+
+export interface OverdriveEnergyInfo {
+  energy: number
+  max: number
+  /** Milliseconds until the next energy point (0 when already full). */
+  msToNext: number
+}
+
+/** Live energy status for display — applies regen without mutating state. */
+export function overdriveEnergyInfo(state: GameState, now = Date.now()): OverdriveEnergyInfo {
+  const { energy, lastRegen } = regenOverdriveEnergy(state.overdriveEnergy ?? 0, state.lastEnergyRegen ?? now, now)
+  const msToNext = energy >= OVERDRIVE_ENERGY_MAX ? 0 : OVERDRIVE_ENERGY_REGEN_MS - (now - lastRegen)
+  return { energy, max: OVERDRIVE_ENERGY_MAX, msToNext }
 }
 
 // ---- Daily streak ------------------------------------------------------------

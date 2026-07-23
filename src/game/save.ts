@@ -1,7 +1,7 @@
 import type { GameState } from './types'
 import { useGameStore, getSerializableState, generateSyncCode, randomTag, defaultGameState } from './store'
 import { calcBitsPerSecond, getOfflineCapHours, calcOfflineEfficiency } from './utils'
-import { SAVE_KEY, SAVE_EPOCH, GC_CAP_BASE, GC_CAP_PER_PRESTIGE } from './constants'
+import { SAVE_KEY, SAVE_EPOCH, GC_CAP_BASE, GC_CAP_PER_PRESTIGE, OVERDRIVE_ENERGY_MAX } from './constants'
 
 /** True when this save predates the current epoch and its progress must be wiped. */
 export function isStaleEpoch(data: Pick<GameState, 'saveEpoch'>): boolean {
@@ -95,6 +95,9 @@ export function loadGame(): GameState | null {
       ghostCreditsAtLastAscension: data.ghostCreditsAtLastAscension ?? 0,
       purchasedAscensionUpgrades: data.purchasedAscensionUpgrades ?? {},
       chipCells: data.chipCells ?? {},
+      // Existing players start with a full pool; energy regens (incl. offline) from here.
+      overdriveEnergy: data.overdriveEnergy ?? OVERDRIVE_ENERGY_MAX,
+      lastEnergyRegen: data.lastEnergyRegen ?? Date.now(),
     }
   } catch (e) {
     console.error('Load failed:', e)

@@ -157,4 +157,9 @@ export interface GameState {
   // ---- The Chip (base-building) ----
   /** Placed modules keyed by cell index ("0".."35" on a 6×6 die). Permanent across resets. */
   chipCells: Record<string, ChipCell>
+  // ---- Overdrive energy ----
+  /** Overdrive activations available now (0..OVERDRIVE_ENERGY_MAX). */
+  overdriveEnergy: number
+  /** Timestamp the current regen interval is measured from; regen accrues offline too. */
+  lastEnergyRegen: number
 }
