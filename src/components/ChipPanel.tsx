@@ -12,8 +12,9 @@ import {
   defenseTier,
   chipTrapChance,
   busBonus,
+  raidEnergyInfo,
 } from '../game/utils'
-import { CHIP_MODULES, CHIP_SIZE, CHIP_MODULE_MAX_LEVEL, CHIP_UNLOCK_BITS, RAID_COOLDOWN_MS } from '../game/constants'
+import { CHIP_MODULES, CHIP_SIZE, CHIP_MODULE_MAX_LEVEL, CHIP_UNLOCK_BITS, RAID_ENERGY_MAX } from '../game/constants'
 import { playSound } from '../game/sound'
 
 const ACCENT: Record<string, string> = {
@@ -38,9 +39,12 @@ const isDefense = (effect: string) => effect === 'defense' || effect === 'vault'
 
 const CELLS = CHIP_SIZE * CHIP_SIZE
 
-function fmtCd(ms: number): string {
+function fmtDuration(ms: number): string {
   const s = Math.max(0, Math.ceil(ms / 1000))
-  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m`
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m`
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`
 }
 
 export function ChipPanel({ onRaid }: { onRaid?: () => void }) {
@@ -104,7 +108,7 @@ export function ChipPanel({ onRaid }: { onRaid?: () => void }) {
   const selBusMult = selected != null && sel ? chipBusMultiplier(state, selected) : 1
   const defenseRating = calcDefenseRating(state)
   const trapChance = chipTrapChance(state)
-  const raidCooldownLeft = state.lastRaidAt + RAID_COOLDOWN_MS - Date.now()
+  const raidEnergy = raidEnergyInfo(state)
 
   return (
     <div className="p-2 space-y-3">
@@ -193,12 +197,28 @@ export function ChipPanel({ onRaid }: { onRaid?: () => void }) {
             Baue Firewall, Honeypot oder Vault, um deine Basis gegen fremde Raids zu befestigen.
           </div>
         )}
+        {/* Raid energy pips */}
+        <div className="flex items-center gap-1.5 mt-2.5">
+          <span className="font-mono text-[10px] text-slate-500">Raid-Energie</span>
+          <div className="flex gap-1">
+            {Array.from({ length: RAID_ENERGY_MAX }, (_, i) => (
+              <span key={i} className="w-2.5 h-2.5 rounded-sm" style={{
+                background: i < raidEnergy.energy ? ACCENT.red : 'transparent',
+                border: `1px solid ${i < raidEnergy.energy ? ACCENT.red : 'rgba(148,163,184,0.3)'}`,
+                boxShadow: i < raidEnergy.energy ? `0 0 6px -2px ${ACCENT.red}` : undefined,
+              }} />
+            ))}
+          </div>
+          <span className="font-mono text-[10px] text-slate-500 ml-auto tabular-nums">
+            {raidEnergy.energy}/{RAID_ENERGY_MAX}{raidEnergy.energy < RAID_ENERGY_MAX && ` · +1 in ${fmtDuration(raidEnergy.msToNext)}`}
+          </span>
+        </div>
         <button
           onClick={() => { playSound('click'); onRaid?.() }}
-          disabled={raidCooldownLeft > 0}
-          className="mt-2.5 w-full font-mono text-sm py-2 rounded border border-red-600/60 text-red-200 bg-red-900/20 hover:bg-red-900/40 disabled:opacity-40 disabled:hover:bg-red-900/20 transition-colors font-semibold"
+          disabled={raidEnergy.energy < 1}
+          className="mt-1.5 w-full font-mono text-sm py-2 rounded border border-red-600/60 text-red-200 bg-red-900/20 hover:bg-red-900/40 disabled:opacity-40 disabled:hover:bg-red-900/20 transition-colors font-semibold"
         >
-          {raidCooldownLeft > 0 ? `⚔ Raid — bereit in ${fmtCd(raidCooldownLeft)}` : '⚔ Fremde Basis raiden'}
+          {raidEnergy.energy < 1 ? `⚔ Keine Energie — +1 in ${fmtDuration(raidEnergy.msToNext)}` : '⚔ Fremde Basis raiden'}
         </button>
       </div>
 

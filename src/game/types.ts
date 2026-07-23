@@ -170,8 +170,12 @@ export interface GameState {
   /** Total chip modules placed, ever (cumulative — not reduced by removals). */
   chipModulesPlaced: number
   // ---- Raiding ----
-  /** Timestamp of your last raid; gates the raid cooldown. */
+  /** Timestamp of your last raid (informational — gating is via raid energy). */
   lastRaidAt: number
   /** Total raids you've won (for stats/achievements later). */
   raidsWon: number
+  /** Raid energy available now (0..RAID_ENERGY_MAX); a breach costs 1. */
+  raidEnergy: number
+  /** Clock the raid-energy regen is measured from; accrues offline too. */
+  lastRaidEnergyRegen: number
 }

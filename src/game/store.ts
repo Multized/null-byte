@@ -17,11 +17,12 @@ import {
   chipPlaceCost,
   chipUpgradeCost,
   regenOverdriveEnergy,
+  regenEnergy,
   isUpgradeUnlocked,
   hasAutoBuy,
   prestigeUpgradeCost,
 } from './utils'
-import { UPGRADES, PRESTIGE_UPGRADES, ASCENSION_UPGRADES, CHIP_MODULES, CHIP_MODULE_MAX_LEVEL, MILESTONE_THRESHOLDS, PRODUCERS, SAVE_EPOCH, OVERCLOCK_MULT, OVERCLOCK_DURATION_MS, OVERDRIVE_ENERGY_MAX } from './constants'
+import { UPGRADES, PRESTIGE_UPGRADES, ASCENSION_UPGRADES, CHIP_MODULES, CHIP_MODULE_MAX_LEVEL, MILESTONE_THRESHOLDS, PRODUCERS, SAVE_EPOCH, OVERCLOCK_MULT, OVERCLOCK_DURATION_MS, OVERDRIVE_ENERGY_MAX, RAID_ENERGY_MAX, RAID_ENERGY_REGEN_MS } from './constants'
 import { findNewlyUnlocked } from './achievements'
 import { rollContract, isContractComplete } from './contracts'
 import { nextAvailableQuest, questById, isStepComplete, artifactContractSlots } from './quests'
@@ -121,6 +122,8 @@ function defaultState(): GameState {
     chipModulesPlaced: 0,
     lastRaidAt: 0,
     raidsWon: 0,
+    raidEnergy: RAID_ENERGY_MAX,
+    lastRaidEnergyRegen: Date.now(),
   }
 }
 
@@ -233,6 +236,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state.overdriveEnergy < OVERDRIVE_ENERGY_MAX) {
       const r = regenOverdriveEnergy(state.overdriveEnergy, state.lastEnergyRegen, now)
       if (r.energy !== state.overdriveEnergy) set({ overdriveEnergy: r.energy, lastEnergyRegen: r.lastRegen })
+    }
+    // Same accounting for raid energy (refills every few hours, incl. offline).
+    if ((state.raidEnergy ?? RAID_ENERGY_MAX) < RAID_ENERGY_MAX) {
+      const r = regenEnergy(state.raidEnergy, state.lastRaidEnergyRegen, now, RAID_ENERGY_MAX, RAID_ENERGY_REGEN_MS)
+      if (r.energy !== state.raidEnergy) set({ raidEnergy: r.energy, lastRaidEnergyRegen: r.lastRegen })
     }
     const bpsMult = now < state.eventExpiresAt ? state.eventBpsMultiplier : 1
     const penaltyMult = now < state.penaltyExpiresAt ? state.penaltyMultiplier : 1
@@ -491,7 +499,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   recordRaid: (won: boolean, loot: number) => {
     set(s => {
-      const next: Partial<GameState> = { lastRaidAt: Date.now() }
+      const now = Date.now()
+      // A committed breach costs 1 raid energy. Catch up regen first so a point that just
+      // refilled is spendable, then spend it.
+      const { energy, lastRegen } = regenEnergy(s.raidEnergy, s.lastRaidEnergyRegen, now, RAID_ENERGY_MAX, RAID_ENERGY_REGEN_MS)
+      const next: Partial<GameState> = {
+        lastRaidAt: now,
+        raidEnergy: Math.max(0, energy - 1),
+        lastRaidEnergyRegen: lastRegen,
+      }
       if (won && loot > 0) {
         next.bits = s.bits + loot
         next.totalBitsEarned = s.totalBitsEarned + loot
@@ -801,6 +817,8 @@ export function getSerializableState(): GameState {
     chipModulesPlaced: s.chipModulesPlaced,
     lastRaidAt: s.lastRaidAt,
     raidsWon: s.raidsWon,
+    raidEnergy: s.raidEnergy,
+    lastRaidEnergyRegen: s.lastRaidEnergyRegen,
   }
 }
 

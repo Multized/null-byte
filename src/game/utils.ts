@@ -31,6 +31,8 @@ import {
   RK_GLOBAL_PER_KEY,
   OVERDRIVE_ENERGY_MAX,
   OVERDRIVE_ENERGY_REGEN_MS,
+  RAID_ENERGY_MAX,
+  RAID_ENERGY_REGEN_MS,
 } from './constants'
 import { calcAchievementMultiplier } from './achievements'
 import { artifactGlobalMultiplier, artifactOfflineBonus } from './quests'
@@ -401,32 +403,48 @@ export function calcChipBonuses(state: GameState): ChipBonuses {
  * preserving the leftover time. While full, the clock idles at `now` so no backlog builds.
  * Works offline because it's driven purely by elapsed real time.
  */
-export function regenOverdriveEnergy(
+export function regenEnergy(
   energy: number,
   lastRegen: number,
   now: number,
+  max: number,
+  regenMs: number,
 ): { energy: number; lastRegen: number } {
-  if (energy >= OVERDRIVE_ENERGY_MAX) return { energy: OVERDRIVE_ENERGY_MAX, lastRegen: now }
-  const gained = Math.floor((now - lastRegen) / OVERDRIVE_ENERGY_REGEN_MS)
+  if (energy >= max) return { energy: max, lastRegen: now }
+  const gained = Math.floor((now - lastRegen) / regenMs)
   if (gained <= 0) return { energy, lastRegen }
-  const next = Math.min(OVERDRIVE_ENERGY_MAX, energy + gained)
+  const next = Math.min(max, energy + gained)
   // Advance the clock by the intervals actually consumed; snap to `now` once full.
-  const lr = next >= OVERDRIVE_ENERGY_MAX ? now : lastRegen + gained * OVERDRIVE_ENERGY_REGEN_MS
+  const lr = next >= max ? now : lastRegen + gained * regenMs
   return { energy: next, lastRegen: lr }
 }
 
-export interface OverdriveEnergyInfo {
+export function regenOverdriveEnergy(energy: number, lastRegen: number, now: number) {
+  return regenEnergy(energy, lastRegen, now, OVERDRIVE_ENERGY_MAX, OVERDRIVE_ENERGY_REGEN_MS)
+}
+
+export interface EnergyInfo {
   energy: number
   max: number
   /** Milliseconds until the next energy point (0 when already full). */
   msToNext: number
 }
 
-/** Live energy status for display — applies regen without mutating state. */
-export function overdriveEnergyInfo(state: GameState, now = Date.now()): OverdriveEnergyInfo {
+/** Live Overdrive energy status for display — applies regen without mutating state. */
+export function overdriveEnergyInfo(state: GameState, now = Date.now()): EnergyInfo {
   const { energy, lastRegen } = regenOverdriveEnergy(state.overdriveEnergy ?? 0, state.lastEnergyRegen ?? now, now)
   const msToNext = energy >= OVERDRIVE_ENERGY_MAX ? 0 : OVERDRIVE_ENERGY_REGEN_MS - (now - lastRegen)
   return { energy, max: OVERDRIVE_ENERGY_MAX, msToNext }
+}
+
+/** Live raid energy status for display — applies regen without mutating state. */
+export function raidEnergyInfo(state: GameState, now = Date.now()): EnergyInfo {
+  const { energy, lastRegen } = regenEnergy(
+    state.raidEnergy ?? RAID_ENERGY_MAX, state.lastRaidEnergyRegen ?? now, now,
+    RAID_ENERGY_MAX, RAID_ENERGY_REGEN_MS,
+  )
+  const msToNext = energy >= RAID_ENERGY_MAX ? 0 : RAID_ENERGY_REGEN_MS - (now - lastRegen)
+  return { energy, max: RAID_ENERGY_MAX, msToNext }
 }
 
 // ---- Daily streak ------------------------------------------------------------

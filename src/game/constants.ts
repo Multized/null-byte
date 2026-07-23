@@ -85,7 +85,10 @@ export const CHIP_TRAP_CAP = 0.5
 // budget. Defensive cells cost a lot, so a well-walled Vault repels sloppy routing.
 export const RAID_BASE_BUDGET = 26            // resistance a breach may spend, before losing
 export const RAID_LOOT_PCT = 0.05             // won loot = this fraction of the target's run bits
-export const RAID_COOLDOWN_MS = 5 * 60_000    // min time between your raids (client-paced)
+// A breach costs 1 raid energy. The pool is small and refills slowly — raids are a
+// scarce, deliberate action (a handful per day), not something you spam.
+export const RAID_ENERGY_MAX = 5
+export const RAID_ENERGY_REGEN_MS = 4.5 * 60 * 60_000  // +1 raid energy every 4.5 hours
 // Per-cell resistance while breaching (empty/economy/bus are cheap; defence is the wall).
 export const RAID_RES_EMPTY = 1
 export const RAID_RES_ECON = 2

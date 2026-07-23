@@ -1,7 +1,7 @@
 import type { GameState } from './types'
 import { useGameStore, getSerializableState, generateSyncCode, randomTag, defaultGameState } from './store'
 import { calcBitsPerSecond, getOfflineCapHours, calcOfflineEfficiency } from './utils'
-import { SAVE_KEY, SAVE_EPOCH, GC_CAP_BASE, GC_CAP_PER_PRESTIGE, OVERDRIVE_ENERGY_MAX } from './constants'
+import { SAVE_KEY, SAVE_EPOCH, GC_CAP_BASE, GC_CAP_PER_PRESTIGE, OVERDRIVE_ENERGY_MAX, RAID_ENERGY_MAX } from './constants'
 
 /** True when this save predates the current epoch and its progress must be wiped. */
 export function isStaleEpoch(data: Pick<GameState, 'saveEpoch'>): boolean {
@@ -102,6 +102,9 @@ export function loadGame(): GameState | null {
       chipModulesPlaced: data.chipModulesPlaced ?? 0,
       lastRaidAt: data.lastRaidAt ?? 0,
       raidsWon: data.raidsWon ?? 0,
+      // Existing players start with a full raid pool; it regens (incl. offline) from here.
+      raidEnergy: data.raidEnergy ?? RAID_ENERGY_MAX,
+      lastRaidEnergyRegen: data.lastRaidEnergyRegen ?? Date.now(),
     }
   } catch (e) {
     console.error('Load failed:', e)

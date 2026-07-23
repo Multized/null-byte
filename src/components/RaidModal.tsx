@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useGameStore } from '../game/store'
 import { fetchRaidTarget, resolveRaid } from '../game/supabase'
-import { formatBits, chipNeighbours, chipModuleDef } from '../game/utils'
+import { formatBits, chipNeighbours, chipModuleDef, raidEnergyInfo } from '../game/utils'
 import {
   type RaidTarget,
   cellResistance,
@@ -13,7 +13,7 @@ import {
   validateBreachPath,
   pathTrapChance,
 } from '../game/raid'
-import { CHIP_SIZE, RAID_COOLDOWN_MS } from '../game/constants'
+import { CHIP_SIZE, RAID_ENERGY_MAX } from '../game/constants'
 import { playSound } from '../game/sound'
 
 interface Props { onClose: () => void }
@@ -21,20 +21,23 @@ interface Props { onClose: () => void }
 const N = CHIP_SIZE * CHIP_SIZE
 const ACCENT: Record<string, string> = { cyan: '#22d3ee', emerald: '#34d399', amber: '#fbbf24', purple: '#a78bfa', red: '#f87171' }
 
-type Phase = 'loading' | 'ready' | 'result' | 'cooldown' | 'none'
+type Phase = 'loading' | 'ready' | 'result' | 'none' | 'noenergy'
 
-function fmtCooldown(ms: number): string {
+function fmtDuration(ms: number): string {
   const s = Math.max(0, Math.ceil(ms / 1000))
-  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m`
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`
 }
 
 export function RaidModal({ onClose }: Props) {
-  const playerId = useGameStore(s => s.playerId)
-  const lastRaidAt = useGameStore(s => s.lastRaidAt)
-  const recordRaid = useGameStore(s => s.recordRaid)
+  const state = useGameStore(s => s)
+  const playerId = state.playerId
+  const recordRaid = state.recordRaid
 
-  const cooldownLeft = lastRaidAt + RAID_COOLDOWN_MS - Date.now()
-  const [phase, setPhase] = useState<Phase>(cooldownLeft > 0 ? 'cooldown' : 'loading')
+  const energy = raidEnergyInfo(state)
+  const [phase, setPhase] = useState<Phase>(energy.energy < 1 ? 'noenergy' : 'loading')
   const [target, setTarget] = useState<RaidTarget | null>(null)
   const [path, setPath] = useState<number[]>([])
   const [result, setResult] = useState<{ won: boolean; loot: number; trapped: boolean } | null>(null)
@@ -49,9 +52,7 @@ export function RaidModal({ onClose }: Props) {
     setPhase(t ? 'ready' : 'none')
   }, [playerId])
 
-  useEffect(() => { if (cooldownLeft <= 0) loadTarget() /* eslint-disable-next-line */ }, [])
-
-  if (phase === 'cooldown' && cooldownLeft <= 0) setPhase('loading')
+  useEffect(() => { if (energy.energy >= 1) loadTarget() /* eslint-disable-next-line */ }, [])
 
   const cells = target?.chipCells ?? {}
   const goal = target ? raidGoalCell(cells) : -1
@@ -78,23 +79,15 @@ export function RaidModal({ onClose }: Props) {
   }
 
   const commitBreach = async () => {
-    if (!target || !atGoal) return
+    if (!target || !atGoal || energy.energy < 1) return
     const trapped = Math.random() < trap
     const won = !trapped
     const loot = won ? raidLoot(target) : 0
-    recordRaid(won, loot)
+    recordRaid(won, loot) // consumes 1 raid energy
     setResult({ won, loot, trapped })
     setPhase('result')
     playSound(won ? 'prestige' : 'event')
     await resolveRaid(playerId, target.playerId, won)
-  }
-
-  const giveUp = async () => {
-    if (!target) return
-    recordRaid(false, 0)
-    setResult({ won: false, loot: 0, trapped: false })
-    setPhase('result')
-    await resolveRaid(playerId, target.playerId, false)
   }
 
   return (
@@ -102,15 +95,26 @@ export function RaidModal({ onClose }: Props) {
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="w-full max-w-md card border-red-800/40 p-5 space-y-3 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between shrink-0">
-          <div className="font-mono text-lg font-semibold text-red-300">⚔ Raid</div>
+          <div className="flex items-center gap-2.5">
+            <span className="font-mono text-lg font-semibold text-red-300">⚔ Raid</span>
+            <span className="flex gap-1" title={`Raid-Energie ${energy.energy}/${RAID_ENERGY_MAX}`}>
+              {Array.from({ length: RAID_ENERGY_MAX }, (_, i) => (
+                <span key={i} className="w-2 h-2 rounded-sm" style={{
+                  background: i < energy.energy ? ACCENT.red : 'transparent',
+                  border: `1px solid ${i < energy.energy ? ACCENT.red : 'rgba(148,163,184,0.3)'}`,
+                }} />
+              ))}
+            </span>
+          </div>
           <button onClick={onClose} className="font-mono text-xs text-slate-600 hover:text-slate-400">schließen</button>
         </div>
 
-        {phase === 'cooldown' && (
+        {phase === 'noenergy' && (
           <div className="text-center py-8 space-y-2">
-            <div className="text-3xl opacity-50">⏳</div>
-            <div className="font-mono text-sm text-slate-400">Abklingzeit</div>
-            <div className="font-mono text-xs text-slate-600">Nächster Raid in {fmtCooldown(cooldownLeft)}</div>
+            <div className="text-3xl opacity-50">⚡</div>
+            <div className="font-mono text-sm text-slate-400">Keine Raid-Energie</div>
+            <div className="font-mono text-xs text-slate-600">Nächste Energie in {fmtDuration(energy.msToNext)}</div>
+            <div className="font-mono text-[10px] text-slate-700">Ein Breach kostet 1 von {RAID_ENERGY_MAX} Energie — sie lädt langsam über Stunden nach.</div>
           </div>
         )}
 
@@ -196,10 +200,10 @@ export function RaidModal({ onClose }: Props) {
                   <button onClick={loadTarget} className="font-mono text-[11px] px-3 py-2 rounded border border-slate-700 text-slate-400 hover:border-slate-500">Anderes Ziel</button>
                   {atGoal ? (
                     <button onClick={commitBreach} className="flex-1 font-mono text-sm py-2 rounded border border-red-500 text-red-200 bg-red-900/25 hover:bg-red-900/40 font-semibold animate-pulse">
-                      Breach{trap > 0 ? ` (${Math.round((1 - trap) * 100)}%)` : ''}
+                      Breach{trap > 0 ? ` (${Math.round((1 - trap) * 100)}%)` : ''} · 1⚡
                     </button>
                   ) : (
-                    <button onClick={giveUp} className="flex-1 font-mono text-[11px] py-2 rounded border border-slate-800 text-slate-600 hover:text-slate-400">Aufgeben</button>
+                    <button disabled className="flex-1 font-mono text-[11px] py-2 rounded border border-slate-800 text-slate-600 opacity-60">◈ Vault erreichen</button>
                   )}
                 </div>
                 <div className="font-mono text-[9px] text-slate-700 text-center">
@@ -219,7 +223,7 @@ export function RaidModal({ onClose }: Props) {
                 ) : (
                   <>
                     <div className="font-mono text-lg font-semibold text-red-400">✗ Abgewehrt</div>
-                    <div className="font-mono text-[11px] text-slate-500">{result.trapped ? 'In einen Honeypot gelaufen.' : 'Aufgegeben.'} Der Verteidiger kassiert eine Bounty.</div>
+                    <div className="font-mono text-[11px] text-slate-500">In einen Honeypot gelaufen. Der Verteidiger kassiert eine Bounty.</div>
                   </>
                 )}
                 <button onClick={onClose} className="w-full mt-1 font-mono text-sm py-2 rounded border border-slate-700 text-slate-300 hover:border-slate-500">Fertig</button>
