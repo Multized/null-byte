@@ -1104,54 +1104,60 @@ export const ASCENSION_UPGRADES: AscensionUpgradeDef[] = [
 // adjacency). Bus has no direct bonus — it multiplies neighbours. Costs are in bits:
 // placing the Nth of a type costs placeCost·placeGrowth^N, upgrading from level L costs
 // upgradeCost·upgradeGrowth^(L-1).
+//
+// Placing is meant to be quick (fill the board early); UPGRADING is the marathon. The
+// upgrade cost grows steeply (×7 per level) from a high base, so a full max-out is a
+// long-term goal that spans the whole game rather than something finished in an afternoon:
+// the first level is affordable in the early-mid game, the top level is a deep-endgame wall
+// (~1e14 bits), and the full die runs into ~1e16 total.
 export const CHIP_MODULES: ChipModuleDef[] = [
   {
     id: 'core', name: 'Core', glyph: '⚙', accent: 'cyan',
     flavor: 'Der Rechenkern. Roh, heiß, unersättlich.',
     effect: 'production', perLevel: 0.02,
-    placeCost: 2_000_000, placeGrowth: 3.5, upgradeCost: 1_000_000, upgradeGrowth: 2.1,
+    placeCost: 2_000_000, placeGrowth: 3.5, upgradeCost: 50_000_000, upgradeGrowth: 7,
   },
   {
     id: 'alu', name: 'ALU', glyph: '∑', accent: 'amber',
     flavor: 'Arithmetik-Einheit. Jeder Klick geht durch sie hindurch.',
     effect: 'click', perLevel: 0.03,
-    placeCost: 1_000_000, placeGrowth: 3.5, upgradeCost: 600_000, upgradeGrowth: 2.1,
+    placeCost: 1_000_000, placeGrowth: 3.5, upgradeCost: 30_000_000, upgradeGrowth: 7,
   },
   {
     id: 'cache', name: 'Cache', glyph: '▦', accent: 'emerald',
     flavor: 'Schneller Speicher. Arbeitet weiter, während du schläfst.',
     effect: 'offline', perLevel: 0.012,
-    placeCost: 3_000_000, placeGrowth: 3.5, upgradeCost: 1_500_000, upgradeGrowth: 2.1,
+    placeCost: 3_000_000, placeGrowth: 3.5, upgradeCost: 75_000_000, upgradeGrowth: 7,
   },
   {
     id: 'register', name: 'Register', glyph: '▤', accent: 'purple',
     flavor: 'Hält, was Aufträge einbringen. Und rundet großzügig auf.',
     effect: 'contract', perLevel: 0.018,
-    placeCost: 2_000_000, placeGrowth: 3.5, upgradeCost: 1_000_000, upgradeGrowth: 2.1,
+    placeCost: 2_000_000, placeGrowth: 3.5, upgradeCost: 50_000_000, upgradeGrowth: 7,
   },
   {
     id: 'bus', name: 'Bus', glyph: '╬', accent: 'cyan',
     flavor: 'Leiterbahn. Verstärkt alles, was sie berührt.',
     effect: 'bus', perLevel: 0,
-    placeCost: 1_000_000, placeGrowth: 3.2, upgradeCost: 500_000, upgradeGrowth: 2.3,
+    placeCost: 1_000_000, placeGrowth: 3.2, upgradeCost: 25_000_000, upgradeGrowth: 7,
   },
   // --- Defensive modules (phase 2). perLevel = defense points per level. ---
   {
     id: 'firewall', name: 'Firewall / ICE', glyph: '🛡', accent: 'red',
     flavor: 'Kaltes Eis um deinen Kern. Wer zu nah kommt, erfriert.',
     effect: 'defense', perLevel: 150,
-    placeCost: 1_500_000, placeGrowth: 3.2, upgradeCost: 800_000, upgradeGrowth: 2.1,
+    placeCost: 1_500_000, placeGrowth: 3.2, upgradeCost: 40_000_000, upgradeGrowth: 7,
   },
   {
     id: 'honeypot', name: 'Honeypot', glyph: '◉', accent: 'amber',
     flavor: 'Ein offener Port, der zu gut aussieht. Genau das ist der Punkt.',
     effect: 'defense', perLevel: 80,
-    placeCost: 2_500_000, placeGrowth: 3.2, upgradeCost: 1_200_000, upgradeGrowth: 2.1,
+    placeCost: 2_500_000, placeGrowth: 3.2, upgradeCost: 60_000_000, upgradeGrowth: 7,
   },
   {
     id: 'vault', name: 'Vault', glyph: '◈', accent: 'emerald',
     flavor: 'Der Tresor im Zentrum. Was hier liegt, holt sich niemand einfach so.',
     effect: 'vault', perLevel: 60,
-    placeCost: 5_000_000, placeGrowth: 3.5, upgradeCost: 2_500_000, upgradeGrowth: 2.2,
+    placeCost: 5_000_000, placeGrowth: 3.5, upgradeCost: 125_000_000, upgradeGrowth: 7,
   },
 ]
