@@ -102,6 +102,7 @@ export function loadGame(): GameState | null {
       chipModulesPlaced: data.chipModulesPlaced ?? 0,
       lastRaidAt: data.lastRaidAt ?? 0,
       raidsWon: data.raidsWon ?? 0,
+      raidsLost: data.raidsLost ?? 0,
       // Existing players start with a full raid pool; it regens (incl. offline) from here.
       raidEnergy: data.raidEnergy ?? RAID_ENERGY_MAX,
       lastRaidEnergyRegen: data.lastRaidEnergyRegen ?? Date.now(),

@@ -74,6 +74,8 @@ export function StatsPanel() {
   const chip: Row[] = [
     { label: 'Defense-Rating', value: defense > 0 ? `${defense.toLocaleString('de-DE')} · ${defenseTier(defense)}` : '—', accent: defense > 0 ? '#f87171' : undefined },
     { label: 'Module platziert', value: modulesPlaced > 0 ? `${modulesPlaced}/36` : '—' },
+    { label: 'Raids gewonnen', value: formatNumber(state.raidsWon ?? 0), accent: (state.raidsWon ?? 0) > 0 ? '#34d399' : undefined },
+    { label: 'Raids verloren', value: formatNumber(state.raidsLost ?? 0), accent: (state.raidsLost ?? 0) > 0 ? '#f87171' : undefined },
   ]
 
   const action: Row[] = [

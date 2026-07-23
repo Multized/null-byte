@@ -122,6 +122,7 @@ function defaultState(): GameState {
     chipModulesPlaced: 0,
     lastRaidAt: 0,
     raidsWon: 0,
+    raidsLost: 0,
     raidEnergy: RAID_ENERGY_MAX,
     lastRaidEnergyRegen: Date.now(),
   }
@@ -508,10 +509,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         raidEnergy: Math.max(0, energy - 1),
         lastRaidEnergyRegen: lastRegen,
       }
-      if (won && loot > 0) {
-        next.bits = s.bits + loot
-        next.totalBitsEarned = s.totalBitsEarned + loot
+      if (won) {
         next.raidsWon = s.raidsWon + 1
+        if (loot > 0) {
+          next.bits = s.bits + loot
+          next.totalBitsEarned = s.totalBitsEarned + loot
+        }
+      } else {
+        next.raidsLost = (s.raidsLost ?? 0) + 1
       }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })
@@ -817,6 +822,7 @@ export function getSerializableState(): GameState {
     chipModulesPlaced: s.chipModulesPlaced,
     lastRaidAt: s.lastRaidAt,
     raidsWon: s.raidsWon,
+    raidsLost: s.raidsLost,
     raidEnergy: s.raidEnergy,
     lastRaidEnergyRegen: s.lastRaidEnergyRegen,
   }

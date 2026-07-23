@@ -174,6 +174,8 @@ export interface GameState {
   lastRaidAt: number
   /** Total raids you've won (for stats/achievements later). */
   raidsWon: number
+  /** Total raids you've lost (repelled by a honeypot). */
+  raidsLost: number
   /** Raid energy available now (0..RAID_ENERGY_MAX); a breach costs 1. */
   raidEnergy: number
   /** Clock the raid-energy regen is measured from; accrues offline too. */
