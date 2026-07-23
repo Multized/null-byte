@@ -151,6 +151,41 @@ export async function fetchMyStanding(state: GameState): Promise<LeaderboardEntr
   return { ...(data as object), rank: (count ?? 0) + 1 } as LeaderboardEntry
 }
 
+// ---- Raiding (phase 3a) ------------------------------------------------------
+
+import type { RaidTarget } from './raid'
+
+/** Find one raid target — a random eligible opponent's base snapshot. */
+export async function fetchRaidTarget(playerId: string): Promise<RaidTarget | null> {
+  const { data, error } = await supabase.rpc('nb_get_raid_target', { p_player_id: playerId })
+  if (error || !data || data.length === 0) return null
+  const row = data[0]
+  return {
+    playerId: row.player_id,
+    name: row.name,
+    nameTag: row.name_tag,
+    defenseRating: row.defense_rating ?? 0,
+    totalBitsEarned: row.total_bits_earned ?? 0,
+    chipCells: (row.chip_cells ?? {}) as RaidTarget['chipCells'],
+  }
+}
+
+/** Report a raid outcome so the defender is shielded (on a breach) or paid a bounty (on a repel). */
+export async function resolveRaid(attackerId: string, targetId: string, won: boolean): Promise<void> {
+  try {
+    await supabase.rpc('nb_resolve_raid', { p_attacker_id: attackerId, p_target_id: targetId, p_won: won })
+  } catch (e) {
+    console.warn('Raid resolve failed:', e)
+  }
+}
+
+/** Claim (and clear) bits owed to you for raids your base repelled while you were away. */
+export async function claimBounty(playerId: string, syncCode: string): Promise<number> {
+  const { data, error } = await supabase.rpc('nb_claim_bounty', { p_player_id: playerId, p_sync_code: syncCode })
+  if (error || typeof data !== 'number') return 0
+  return data
+}
+
 export async function loadFromSyncCode(code: string): Promise<GameState | null> {
   const { data, error } = await supabase.rpc('nb_load_by_sync_code', {
     p_code: normalizeSyncCode(code),

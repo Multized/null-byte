@@ -169,4 +169,9 @@ export interface GameState {
   overdrivesUsed: number
   /** Total chip modules placed, ever (cumulative — not reduced by removals). */
   chipModulesPlaced: number
+  // ---- Raiding ----
+  /** Timestamp of your last raid; gates the raid cooldown. */
+  lastRaidAt: number
+  /** Total raids you've won (for stats/achievements later). */
+  raidsWon: number
 }

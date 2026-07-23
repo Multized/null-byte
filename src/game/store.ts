@@ -119,6 +119,8 @@ function defaultState(): GameState {
     lastEnergyRegen: Date.now(),
     overdrivesUsed: 0,
     chipModulesPlaced: 0,
+    lastRaidAt: 0,
+    raidsWon: 0,
   }
 }
 
@@ -152,6 +154,7 @@ interface GameStore extends GameState {
   placeChipModule: (cell: number, type: string) => boolean
   upgradeChipModule: (cell: number) => boolean
   removeChipModule: (cell: number) => boolean
+  recordRaid: (won: boolean, loot: number) => void
   loadState: (state: GameState) => void
   updateLastActive: () => void
   setPlayerName: (name: string, tag: string) => void
@@ -486,6 +489,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return true
   },
 
+  recordRaid: (won: boolean, loot: number) => {
+    set(s => {
+      const next: Partial<GameState> = { lastRaidAt: Date.now() }
+      if (won && loot > 0) {
+        next.bits = s.bits + loot
+        next.totalBitsEarned = s.totalBitsEarned + loot
+        next.raidsWon = s.raidsWon + 1
+      }
+      return { ...next, ...computeDerived({ ...s, ...next }) }
+    })
+    get().checkAchievements()
+  },
+
   removeChipModule: (cell: number) => {
     const state = get()
     const key = String(cell)
@@ -783,6 +799,8 @@ export function getSerializableState(): GameState {
     lastEnergyRegen: s.lastEnergyRegen,
     overdrivesUsed: s.overdrivesUsed,
     chipModulesPlaced: s.chipModulesPlaced,
+    lastRaidAt: s.lastRaidAt,
+    raidsWon: s.raidsWon,
   }
 }
 

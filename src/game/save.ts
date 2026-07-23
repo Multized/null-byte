@@ -100,6 +100,8 @@ export function loadGame(): GameState | null {
       lastEnergyRegen: data.lastEnergyRegen ?? Date.now(),
       overdrivesUsed: data.overdrivesUsed ?? 0,
       chipModulesPlaced: data.chipModulesPlaced ?? 0,
+      lastRaidAt: data.lastRaidAt ?? 0,
+      raidsWon: data.raidsWon ?? 0,
     }
   } catch (e) {
     console.error('Load failed:', e)

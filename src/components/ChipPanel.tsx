@@ -13,7 +13,7 @@ import {
   chipTrapChance,
   busBonus,
 } from '../game/utils'
-import { CHIP_MODULES, CHIP_SIZE, CHIP_MODULE_MAX_LEVEL, CHIP_UNLOCK_BITS } from '../game/constants'
+import { CHIP_MODULES, CHIP_SIZE, CHIP_MODULE_MAX_LEVEL, CHIP_UNLOCK_BITS, RAID_COOLDOWN_MS } from '../game/constants'
 import { playSound } from '../game/sound'
 
 const ACCENT: Record<string, string> = {
@@ -38,7 +38,12 @@ const isDefense = (effect: string) => effect === 'defense' || effect === 'vault'
 
 const CELLS = CHIP_SIZE * CHIP_SIZE
 
-export function ChipPanel() {
+function fmtCd(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000))
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m`
+}
+
+export function ChipPanel({ onRaid }: { onRaid?: () => void }) {
   const state = useGameStore(s => s)
   const bits = useGameStore(s => s.bits)
   const chipCells = useGameStore(s => s.chipCells)
@@ -99,6 +104,7 @@ export function ChipPanel() {
   const selBusMult = selected != null && sel ? chipBusMultiplier(state, selected) : 1
   const defenseRating = calcDefenseRating(state)
   const trapChance = chipTrapChance(state)
+  const raidCooldownLeft = state.lastRaidAt + RAID_COOLDOWN_MS - Date.now()
 
   return (
     <div className="p-2 space-y-3">
@@ -172,24 +178,28 @@ export function ChipPanel() {
         )}
       </div>
 
-      {/* Defense summary */}
+      {/* Defense summary + raid launch */}
       <div className="card bg-[#0a0a10] border-red-900/30 p-2.5">
         <div className="flex items-center justify-between">
           <div className="font-mono text-[10px] text-slate-600 uppercase tracking-widest">Verteidigung</div>
-          <div className="font-mono text-[10px] text-red-400/60">Raids kommen bald</div>
+          <span className="font-mono text-[10px] text-slate-500">🍯 {Math.round(trapChance * 100)}% Falle</span>
         </div>
         <div className="flex items-baseline gap-2 mt-1">
           <span className="font-mono text-lg font-semibold" style={{ color: ACCENT.red }}>{defenseRating.toLocaleString('de-DE')}</span>
           <span className="font-mono text-[11px] text-slate-400">{defenseTier(defenseRating)}</span>
-          {trapChance > 0 && (
-            <span className="font-mono text-[10px] text-amber-400/80 ml-auto">🍯 {Math.round(trapChance * 100)}% Falle</span>
-          )}
         </div>
         {defenseRating === 0 && (
           <div className="font-mono text-[10px] text-slate-600 mt-1">
-            Baue Firewall, Honeypot oder Vault, um deine Basis zu befestigen — bevor das Raiding-Update kommt.
+            Baue Firewall, Honeypot oder Vault, um deine Basis gegen fremde Raids zu befestigen.
           </div>
         )}
+        <button
+          onClick={() => { playSound('click'); onRaid?.() }}
+          disabled={raidCooldownLeft > 0}
+          className="mt-2.5 w-full font-mono text-sm py-2 rounded border border-red-600/60 text-red-200 bg-red-900/20 hover:bg-red-900/40 disabled:opacity-40 disabled:hover:bg-red-900/20 transition-colors font-semibold"
+        >
+          {raidCooldownLeft > 0 ? `⚔ Raid — bereit in ${fmtCd(raidCooldownLeft)}` : '⚔ Fremde Basis raiden'}
+        </button>
       </div>
 
       {/* Selected module inspector */}

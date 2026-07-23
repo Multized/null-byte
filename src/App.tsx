@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { useGameStore } from './game/store'
 import { saveGame, loadGame, calcOfflineEarnings } from './game/save'
-import { submitScore, isLegacySyncCode, rotateSyncCode } from './game/supabase'
+import { submitScore, isLegacySyncCode, rotateSyncCode, claimBounty } from './game/supabase'
+import { emitToast } from './game/toastBus'
 import { generateSyncCode } from './game/store'
 
 import type { OfflineResult } from './game/save'
@@ -23,13 +24,14 @@ import { EventPopup, type GameEvent, type GameEventType } from './components/Eve
 import { AchievementToastQueue } from './components/AchievementToast'
 import { AchievementsPanel } from './components/AchievementsPanel'
 import { ChipPanel } from './components/ChipPanel'
+import { RaidModal } from './components/RaidModal'
 import { DataPacketLayer } from './components/DataPacketLayer'
 import { StatsPanel } from './components/StatsPanel'
 import { MatrixRain } from './components/MatrixRain'
 import { DilemmaModal } from './components/DilemmaModal'
 import { rollDilemma } from './game/dilemmas'
 import { initAudio } from './game/sound'
-import { isUpgradeUnlocked, isChipUnlocked, dailyStreakInfo } from './game/utils'
+import { isUpgradeUnlocked, isChipUnlocked, dailyStreakInfo, formatBits } from './game/utils'
 import { UPGRADES } from './game/constants'
 
 type MobileTab = 'run' | 'shop' | 'upgrades' | 'chip' | 'rank'
@@ -68,6 +70,7 @@ export default function App() {
   const [showAscension, setShowAscension] = useState(false)
   const [showDaily, setShowDaily] = useState(false)
   const [showNameModal, setShowNameModal] = useState(false)
+  const [showRaid, setShowRaid] = useState(false)
   const [offlineResult, setOfflineResult] = useState<{ result: OfflineResult; state: GameState } | null>(null)
   const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([])
   const [activeEvent, setActiveEvent] = useState<GameEvent | null>(null)
@@ -98,6 +101,18 @@ export default function App() {
       saveGame()
       void upgradeLegacySyncCode(saved)
       setTimeout(() => submitScore(useGameStore.getState()), 500)
+      // Defence bounties earned while offline: a raid your base repelled minted bits for you.
+      if (saved.playerName && saved.syncCode) {
+        void claimBounty(saved.playerId, saved.syncCode).then(bounty => {
+          if (bounty > 0) {
+            useGameStore.setState(s => ({
+              bits: s.bits + bounty,
+              totalBitsEarned: s.totalBitsEarned + bounty,
+            }))
+            emitToast({ kind: 'info', icon: '🛡', title: 'Basis verteidigt', text: `+${formatBits(bounty)} Bounty kassiert` })
+          }
+        })
+      }
       if (offlineRes.earnings > 0) {
         useGameStore.setState(s => ({
           bits: s.bits + offlineRes.earnings,
@@ -283,7 +298,7 @@ export default function App() {
           <div className="flex-1 min-h-0 overflow-y-auto">
             {desktopTab === 'shop' && <ProducerList />}
             {desktopTab === 'mods' && <UpgradePanel />}
-            {desktopTab === 'chip' && <ChipPanel />}
+            {desktopTab === 'chip' && <ChipPanel onRaid={() => setShowRaid(true)} />}
             {desktopTab === 'agent' && (
               <div className="flex flex-col gap-0">
                 <div className="p-2">
@@ -316,7 +331,7 @@ export default function App() {
           )}
           {mobileTab === 'shop' && <ProducerList />}
           {mobileTab === 'upgrades' && <UpgradePanel />}
-          {mobileTab === 'chip' && <ChipPanel />}
+          {mobileTab === 'chip' && <ChipPanel onRaid={() => setShowRaid(true)} />}
           {mobileTab === 'rank' && (
             <div className="space-y-2 p-2">
               <AccountPanel entries={leaderboardEntries} />
@@ -402,6 +417,7 @@ export default function App() {
       )}
       {showGhostShop && <GhostShopModal onClose={() => setShowGhostShop(false)} />}
       {showAscension && <AscensionModal onClose={() => setShowAscension(false)} />}
+      {showRaid && <RaidModal onClose={() => setShowRaid(false)} />}
       {/* Daily waits behind any welcome/name/offline modal so they never stack — once
           those clear (setShowNameModal(false) / setOfflineResult(null)) it appears. */}
       {showDaily && !showNameModal && !offlineResult && (

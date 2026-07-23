@@ -79,6 +79,22 @@ export const CHIP_DEFENSE_TIERS: { min: number; label: string }[] = [
 export const CHIP_TRAP_PER_LEVEL = 0.02
 export const CHIP_TRAP_CAP = 0.5
 
+// ---- The Chip, phase 3: raiding ---------------------------------------------
+// Async, minted loot (a raid never deducts from the victim). The breach is a routing
+// puzzle: trace a path from an edge to the target's Vault, staying under a resistance
+// budget. Defensive cells cost a lot, so a well-walled Vault repels sloppy routing.
+export const RAID_BASE_BUDGET = 26            // resistance a breach may spend, before losing
+export const RAID_LOOT_PCT = 0.05             // won loot = this fraction of the target's run bits
+export const RAID_COOLDOWN_MS = 5 * 60_000    // min time between your raids (client-paced)
+// Per-cell resistance while breaching (empty/economy/bus are cheap; defence is the wall).
+export const RAID_RES_EMPTY = 1
+export const RAID_RES_ECON = 2
+export const RAID_RES_BUS = 1
+export const RAID_RES_FIREWALL_BASE = 5
+export const RAID_RES_FIREWALL_PER_LEVEL = 3
+export const RAID_RES_HONEYPOT_BASE = 4
+export const RAID_RES_HONEYPOT_PER_LEVEL = 2
+
 export const PRODUCERS: ProducerDef[] = [
   {
     id: 'script',
