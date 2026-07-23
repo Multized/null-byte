@@ -20,6 +20,8 @@ interface Props {
   onEntriesChange?: (entries: LeaderboardEntry[]) => void
 }
 
+const TOP_N = 10
+
 function Row({ entry, isMe }: { entry: LeaderboardEntry; isMe: boolean }) {
   const title = entry.active_title ? titleById(entry.active_title) : undefined
   return (
@@ -70,12 +72,35 @@ function Row({ entry, isMe }: { entry: LeaderboardEntry; isMe: boolean }) {
   )
 }
 
+/** Full-list popup shown from the "alle anzeigen" button. */
+function AllModal({ entries, playerId, onClose }: { entries: LeaderboardEntry[]; playerId: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="w-full max-w-md card p-4 flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between mb-3 shrink-0">
+          <div className="font-mono text-sm font-semibold text-slate-200">&gt; leaderboard — alle ({entries.length})</div>
+          <button onClick={onClose} className="font-mono text-xs text-slate-600 hover:text-slate-400">schließen</button>
+        </div>
+        <div className="overflow-y-auto space-y-1 pr-1 -mr-1">
+          {entries.map(entry => (
+            <Row key={entry.player_id} entry={entry} isMe={entry.player_id === playerId} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function Leaderboard({ onEntriesChange }: Props) {
   const playerId = useGameStore(s => s.playerId)
 
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
   const [myStanding, setMyStanding] = useState<LeaderboardEntry | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showAll, setShowAll] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -97,6 +122,11 @@ export function Leaderboard({ onEntriesChange }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // My own row for the compact view: my entry when it's in the fetched list but below the
+  // top slice, otherwise my separately-fetched standing (when I'm beyond the fetched list).
+  const me = entries.find(e => e.player_id === playerId)
+  const myRow = me ? (me.rank > TOP_N ? me : null) : myStanding
+
   return (
     <div className="flex flex-col gap-2 p-2">
       <div className="flex items-center justify-between px-1 mb-1">
@@ -115,17 +145,28 @@ export function Leaderboard({ onEntriesChange }: Props) {
         </div>
       ) : (
         <div className="space-y-1">
-          {entries.map(entry => (
+          {entries.slice(0, TOP_N).map(entry => (
             <Row key={entry.player_id} entry={entry} isMe={entry.player_id === playerId} />
           ))}
-          {myStanding && (
+          {/* My own row when I'm ranked outside the top slice (in the fetched list, or beyond it). */}
+          {myRow && (
             <>
               <div className="font-mono text-[9px] text-slate-700 text-center py-0.5">· · ·</div>
-              <Row entry={myStanding} isMe />
+              <Row entry={myRow} isMe />
             </>
+          )}
+          {entries.length > TOP_N && (
+            <button
+              onClick={() => setShowAll(true)}
+              className="w-full mt-1 font-mono text-[11px] py-2 rounded border border-slate-800 text-slate-500 hover:border-cyan-800/60 hover:text-cyan-400 transition-colors"
+            >
+              ▸ alle anzeigen ({entries.length})
+            </button>
           )}
         </div>
       )}
+
+      {showAll && <AllModal entries={entries} playerId={playerId} onClose={() => setShowAll(false)} />}
     </div>
   )
 }
