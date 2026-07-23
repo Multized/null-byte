@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useGameStore } from '../game/store'
 import { fetchRaidTarget, resolveRaid } from '../game/supabase'
-import { formatBits, chipNeighbours, chipModuleDef, raidEnergyInfo } from '../game/utils'
+import { formatBits, chipNeighbours, raidEnergyInfo } from '../game/utils'
 import {
   type RaidTarget,
   cellResistance,
@@ -146,46 +146,75 @@ export function RaidModal({ onClose }: Props) {
 
             {/* Objective + meters */}
             <div className="flex items-center justify-between font-mono text-[10px] text-slate-500 shrink-0">
-              <span>Erreiche den <span className="text-amber-300">◈ Vault</span> vom Rand</span>
+              <span>Route vom <span className="text-cyan-300">Rand</span> zum <span className="text-amber-300">◈ Ziel</span></span>
               <span>Widerstand <b className={val.resistance > budget ? 'text-red-400' : 'text-cyan-300'}>{val.resistance}</b>/{budget}</span>
             </div>
             <div className="w-full h-1.5 bg-slate-800/60 rounded-full overflow-hidden shrink-0">
               <div className="h-full bg-cyan-500/70 transition-all" style={{ width: `${Math.min(100, (val.resistance / budget) * 100)}%` }} />
             </div>
 
-            {/* The target die */}
-            <div className="mx-auto" style={{ maxWidth: 'min(88vw, 320px)' }}>
-              <div className="grid gap-1 p-2 rounded-md bg-[#080810] border border-slate-800/60"
+            {/* The target as a tactical breach map — semantic tiles, not the builder's icons */}
+            <div className="mx-auto" style={{ maxWidth: 'min(92vw, 340px)' }}>
+              <div className="grid gap-[3px] p-2.5 rounded-md bg-[#070710] border border-slate-800/60"
                 style={{ gridTemplateColumns: `repeat(${CHIP_SIZE}, minmax(0,1fr))`, gridTemplateRows: `repeat(${CHIP_SIZE}, minmax(0,1fr))`, aspectRatio: '1/1' }}>
                 {Array.from({ length: N }, (_, i) => {
                   const cell = cells[String(i)]
-                  const def = cell ? chipModuleDef(cell.type) : undefined
-                  const color = def ? ACCENT[def.accent] : undefined
-                  const inPath = path.includes(i)
-                  const isGoal = i === goal
-                  const isLast = path[path.length - 1] === i
-                  const res = cellResistance(cell)
+                  const isFirewall = cell?.type === 'firewall'
                   const isHoneypot = cell?.type === 'honeypot'
+                  const res = cellResistance(cell)
+                  const inPath = path.includes(i)
+                  const pathPos = path.indexOf(i)
+                  const isStart = pathPos === 0
+                  const isLast = pathPos === path.length - 1 && inPath
+                  const isGoal = i === goal
+                  const edge = isEdgeCell(i)
+                  // Highlight only cheap passable edge cells as recommended entry points;
+                  // edge firewalls/honeypots stay walls (you *can* start there, just not ideal).
+                  const entryHint = !inPath && edge && path.length === 0 && !isGoal && !isFirewall && !isHoneypot
+                  const canStart = phase === 'ready' && !result
+
+                  // Base tile look by tactical role (path overlay wins visually).
+                  let bg = '#0b0b14', border = 'rgba(51,65,85,0.35)', glow: string | undefined
+                  if (isGoal) { bg = 'rgba(251,191,36,0.14)'; border = '#fbbf24'; glow = '0 0 12px -2px #fbbf24' }
+                  else if (isFirewall) { bg = 'repeating-linear-gradient(45deg, rgba(248,113,113,0.30) 0 3px, rgba(248,113,113,0.08) 3px 7px)'; border = 'rgba(248,113,113,0.55)' }
+                  else if (isHoneypot) { bg = 'rgba(251,191,36,0.14)'; border = 'rgba(251,191,36,0.5)' }
+                  else if (cell) { bg = 'rgba(148,163,184,0.06)'; border = 'rgba(71,85,105,0.4)' } // passable econ/bus
+                  if (entryHint) { bg = 'rgba(34,211,238,0.07)'; border = 'rgba(34,211,238,0.4)' }
+                  if (inPath) { bg = 'rgba(34,211,238,0.32)'; border = isLast ? '#e2e8f0' : '#22d3ee' }
+
+                  const title = isGoal ? 'Ziel (Vault/Core) — hierher routen'
+                    : isFirewall ? `Firewall · Widerstand ${res}`
+                    : isHoneypot ? `Honeypot · Widerstand ${res} · Falle`
+                    : `passierbar · Widerstand ${res}`
+
                   return (
                     <button key={i} onClick={() => clickCell(i)}
-                      className="relative rounded-sm flex flex-col items-center justify-center overflow-hidden transition-all duration-75"
-                      style={{
-                        minWidth: 0, minHeight: 0,
-                        background: inPath ? 'rgba(34,211,238,0.28)' : color ? `color-mix(in srgb, ${color} 13%, #0a0a12)` : '#0c0c14',
-                        border: `1px solid ${isLast ? '#e2e8f0' : isGoal ? '#fbbf24' : inPath ? '#22d3ee' : color ? `color-mix(in srgb, ${color} 45%, transparent)` : 'rgba(51,65,85,0.4)'}`,
-                        boxShadow: isGoal ? '0 0 10px -2px #fbbf24' : color && !inPath ? `0 0 8px -4px ${color}` : undefined,
-                        cursor: phase === 'ready' && !result ? 'pointer' : 'default',
-                      }}
-                      title={def ? `${def.name} Lv${cell!.level} · Widerstand ${res}${isHoneypot ? ` · Falle` : ''}` : `leer · Widerstand ${res}`}>
-                      {isGoal ? <span style={{ color: '#fbbf24', fontSize: 'clamp(0.7rem,3.4vw,1rem)' }}>◈</span>
-                        : def ? <span style={{ color, fontSize: 'clamp(0.6rem,3vw,0.95rem)', lineHeight: 1 }}>{def.glyph}</span>
-                        : <span className="text-slate-800" style={{ fontSize: '0.5rem' }}>·</span>}
-                      {def && def.effect !== 'vault' && res > 2 && (
-                        <span className="font-mono text-slate-500" style={{ fontSize: '0.45rem' }}>{res}</span>
+                      className="relative rounded-[3px] flex items-center justify-center overflow-hidden transition-all duration-75"
+                      style={{ minWidth: 0, minHeight: 0, background: bg, border: `1px solid ${border}`, boxShadow: glow,
+                        borderStyle: entryHint ? 'dashed' : 'solid', cursor: canStart ? 'pointer' : 'default' }}
+                      title={title}>
+                      {isGoal ? (
+                        <span style={{ color: '#fbbf24', fontSize: 'clamp(0.8rem,3.8vw,1.1rem)', lineHeight: 1 }}>◈</span>
+                      ) : inPath ? (
+                        <span style={{ color: isLast ? '#f1f5f9' : '#a5f3fc', fontSize: 'clamp(0.6rem,3vw,0.9rem)', lineHeight: 1 }}>
+                          {isStart ? '▶' : isLast ? '◆' : '•'}
+                        </span>
+                      ) : (isFirewall || isHoneypot) ? (
+                        <span className="font-mono font-semibold tabular-nums"
+                          style={{ color: isFirewall ? '#fca5a5' : '#fcd34d', fontSize: 'clamp(0.5rem,2.5vw,0.72rem)', lineHeight: 1 }}>{res}</span>
+                      ) : (
+                        <span style={{ color: entryHint ? 'rgba(34,211,238,0.6)' : 'rgba(71,85,105,0.5)', fontSize: '0.4rem' }}>·</span>
                       )}
                     </button>
                   )
                 })}
+              </div>
+              {/* Legend */}
+              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-2 font-mono text-[9px] text-slate-500">
+                <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-[2px] inline-block border border-dashed" style={{ borderColor: 'rgba(34,211,238,0.5)', background: 'rgba(34,211,238,0.08)' }} />Rand = Einstieg</span>
+                <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-[2px] inline-block" style={{ background: 'repeating-linear-gradient(45deg, rgba(248,113,113,0.5) 0 2px, rgba(248,113,113,0.12) 2px 4px)', border: '1px solid rgba(248,113,113,0.55)' }} />Firewall (Widerstand)</span>
+                <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-[2px] inline-block" style={{ background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.5)' }} />Honeypot (Falle)</span>
+                <span className="flex items-center gap-1"><span className="text-amber-300">◈</span> Ziel</span>
               </div>
             </div>
 
@@ -207,7 +236,7 @@ export function RaidModal({ onClose }: Props) {
                   )}
                 </div>
                 <div className="font-mono text-[9px] text-slate-700 text-center">
-                  {path.length === 0 ? 'Klicke eine Randzelle, um einzudringen.' : 'Klicke angrenzende Zellen bis zum Vault. Firewalls kosten Widerstand, Honeypots sind Fallen.'}
+                  {path.length === 0 ? '① Klicke eine gestrichelte Randzelle (Einstieg).' : '② Klicke Zelle für Zelle weiter bis zum ◈ Ziel. Zurück: letzte Zelle erneut klicken.'}
                 </div>
               </div>
             )}
