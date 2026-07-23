@@ -98,6 +98,8 @@ export function loadGame(): GameState | null {
       // Existing players start with a full pool; energy regens (incl. offline) from here.
       overdriveEnergy: data.overdriveEnergy ?? OVERDRIVE_ENERGY_MAX,
       lastEnergyRegen: data.lastEnergyRegen ?? Date.now(),
+      overdrivesUsed: data.overdrivesUsed ?? 0,
+      chipModulesPlaced: data.chipModulesPlaced ?? 0,
     }
   } catch (e) {
     console.error('Load failed:', e)

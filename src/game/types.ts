@@ -93,6 +93,8 @@ export type ContractType =
   | 'buy_upgrades'
   | 'catch_packet'
   | 'playtime'
+  | 'overdrive'
+  | 'chip_module'
 
 export interface ActiveContract {
   id: string
@@ -162,4 +164,9 @@ export interface GameState {
   overdriveEnergy: number
   /** Timestamp the current regen interval is measured from; regen accrues offline too. */
   lastEnergyRegen: number
+  // ---- Lifetime counters for contracts/quests ----
+  /** Total Overdrive activations, ever. */
+  overdrivesUsed: number
+  /** Total chip modules placed, ever (cumulative — not reduced by removals). */
+  chipModulesPlaced: number
 }

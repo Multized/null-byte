@@ -1,5 +1,5 @@
 import type { ActiveContract, ContractType, GameState } from './types'
-import { calcBitsPerSecond, contractRewardMultiplier } from './utils'
+import { calcBitsPerSecond, contractRewardMultiplier, isChipUnlocked } from './utils'
 
 export interface ContractTemplate {
   type: ContractType
@@ -14,6 +14,8 @@ export interface ContractTemplate {
   rewardSeconds: number
   /** Chance (0..1) that this contract pays ghost credits instead of bits (post-prestige only). */
   gcChance: number
+  /** If set, the contract only rolls when the mechanic it references is available. */
+  available?: (state: GameState) => boolean
 }
 
 const TEMPLATES: ContractTemplate[] = [
@@ -89,6 +91,25 @@ const TEMPLATES: ContractTemplate[] = [
     rewardSeconds: 90,
     gcChance: 0,
   },
+  {
+    type: 'overdrive',
+    icon: '🔋',
+    makeTarget: () => 1 + Math.floor(Math.random() * 2), // 1–2
+    counter: s => s.overdrivesUsed ?? 0,
+    label: t => t === 1 ? 'Zünde 1× Overdrive' : `Zünde ${t}× Overdrive`,
+    rewardSeconds: 90,
+    gcChance: 0.15,
+  },
+  {
+    type: 'chip_module',
+    icon: '▦',
+    makeTarget: () => 1 + Math.floor(Math.random() * 2), // 1–2
+    counter: s => s.chipModulesPlaced ?? 0,
+    label: t => t === 1 ? 'Platziere 1 Chip-Modul' : `Platziere ${t} Chip-Module`,
+    rewardSeconds: 120,
+    gcChance: 0.1,
+    available: isChipUnlocked, // no point offering it before the chip exists
+  },
 ]
 
 // Compact number label for contract text (no import cycle with utils formatBits needed for bits amounts)
@@ -110,9 +131,10 @@ let contractIdCounter = 0
 /** Rolls one new contract whose type differs from the currently active ones. */
 export function rollContract(state: GameState): ActiveContract {
   const activeTypes = new Set(state.activeContracts.map(c => c.type))
-  // catch_packet/claim_event need their feature to matter; always allowed, they're core loops now
-  const pool = TEMPLATES.filter(t => !activeTypes.has(t.type))
-  const tpl = pool[Math.floor(Math.random() * pool.length)] ?? TEMPLATES[0]
+  const pool = TEMPLATES.filter(t => !activeTypes.has(t.type) && (t.available?.(state) ?? true))
+  // Fall back to any not-already-active template if the gated pool is empty.
+  const usable = pool.length > 0 ? pool : TEMPLATES.filter(t => !activeTypes.has(t.type))
+  const tpl = usable[Math.floor(Math.random() * usable.length)] ?? TEMPLATES[0]
 
   const bps = calcBitsPerSecond(state)
   const reward = Math.max(100, Math.ceil(bps * tpl.rewardSeconds * contractRewardMultiplier(state)))

@@ -1,5 +1,5 @@
 import type { GameState } from './types'
-import { calcBitsPerSecond } from './utils'
+import { calcBitsPerSecond, isChipUnlocked, isGhostShopMaxed } from './utils'
 
 // ---- Rewards -----------------------------------------------------------------
 
@@ -120,6 +120,8 @@ export const TITLES: TitleDef[] = [
   { id: 'architect', label: 'Architect', icon: '👁' },
   { id: 'phantom', label: 'Phantom', icon: '🌀' },
   { id: 'legend', label: 'Legende des Netzes', icon: '♛' },
+  { id: 'chipsmith', label: 'Silizium-Schmied', icon: '⚙' },
+  { id: 'root', label: 'Root', icon: '⬢' },
 ]
 
 export function titleById(id: string): TitleDef | undefined {
@@ -140,6 +142,10 @@ const m = {
   contracts: (s: GameState) => s.contractsCompleted,
   prestige: (s: GameState) => s.prestigeCount,
   ownProducer: (id: string) => (s: GameState) => s.producers[id] ?? 0,
+  overdrives: (s: GameState) => s.overdrivesUsed ?? 0,
+  chipModules: (s: GameState) => Object.keys(s.chipCells ?? {}).length,
+  ascensions: (s: GameState) => s.ascensionCount ?? 0,
+  rootKeys: (s: GameState) => s.totalRootKeysEarned ?? 0,
 }
 
 // ---- The campaign ------------------------------------------------------------
@@ -234,6 +240,34 @@ export const QUESTS: QuestDef[] = [
     rewardGc: 0,
     rewardArtifact: 'ghost_chip',
     outro: '"Der Cluster gehorcht jetzt dir. Der Ghost Protocol Chip aus seinem Kern gibt dir mehr Aufträge parallel."',
+  },
+  {
+    id: 'op_foundry',
+    name: 'Eigenbau',
+    codename: 'FOUNDRY',
+    intro: '"Du zapfst seit Wochen fremde Maschinen an. Zeit, dass dir eine gehört — vom Silizium aufwärts. Öffne den CHIP-Tab und gieß dir ein Die."',
+    unlock: s => isChipUnlocked(s),
+    steps: [
+      {
+        narrative: '"Ein Prozessor beginnt mit einem einzigen Kern. Setz ihn."',
+        objective: 'Platziere dein erstes Chip-Modul',
+        mode: 'threshold', target: 1, metric: m.chipModules,
+      },
+      {
+        narrative: '"Ein Kern rechnet allein. Bau die Fläche aus und verdrahte sie mit einem Bus."',
+        objective: 'Besitze 6 Chip-Module',
+        mode: 'threshold', target: 6, metric: m.chipModules,
+      },
+      {
+        narrative: '"Und jetzt jag deine eigene Hardware ans Limit. Übertakte sie."',
+        objective: 'Zünde 3× Overdrive',
+        mode: 'accumulate', target: 3, metric: m.overdrives,
+      },
+    ],
+    rewardBitsSeconds: 900,
+    rewardGc: 0,
+    rewardTitle: 'chipsmith',
+    outro: '"Jeder Transistor gehört dir. Du bist kein Gast mehr im Netz — du bist Infrastruktur. Silizium-Schmied."',
   },
   {
     id: 'op_zerohour',
@@ -376,6 +410,29 @@ export const QUESTS: QuestDef[] = [
     rewardGc: 0,
     rewardArtifact: 'basilisk_eye',
     outro: '"Es sieht dich an und erkennt sich selbst. Das Auge des Basilisken gehört jetzt dir — oder du ihm. Der Unterschied war nie besonders wichtig."',
+  },
+  {
+    id: 'op_rootaccess',
+    name: 'Root Access',
+    codename: 'ROOTKEY',
+    intro: '"Der Ghost war nur die erste Häutung. Unter allem liegt der Kernel selbst. Wer dort ankommt, kommt anders zurück — als Root. Maxe den Ghost Shop und öffne die Root-Access-Ebene."',
+    unlock: s => (s.ascensionCount ?? 0) >= 1 || isGhostShopMaxed(s),
+    steps: [
+      {
+        narrative: '"Gib nicht nur deinen Fortschritt auf. Gib die ganze Ghost-Ebene auf. Transzendiere."',
+        objective: 'Erlange Root Access (1× Ascension)',
+        mode: 'threshold', target: 1, metric: m.ascensions,
+      },
+      {
+        narrative: '"Root Keys sind das Einzige, was durch jeden Tod hindurch bleibt. Häufe sie an."',
+        objective: 'Verdiene 8 Root Keys insgesamt',
+        mode: 'threshold', target: 8, metric: m.rootKeys,
+      },
+    ],
+    rewardBitsSeconds: 7200,
+    rewardGc: 0,
+    rewardTitle: 'root',
+    outro: '"Es gibt keinen tieferen Zugang mehr. Du bist der Root. Alles darüber ist nur noch Oberfläche."',
   },
 ]
 

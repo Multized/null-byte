@@ -117,6 +117,8 @@ function defaultState(): GameState {
     chipCells: {},
     overdriveEnergy: OVERDRIVE_ENERGY_MAX,
     lastEnergyRegen: Date.now(),
+    overdrivesUsed: 0,
+    chipModulesPlaced: 0,
   }
 }
 
@@ -443,11 +445,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Catch up regen first so a point that just refilled is spendable.
     const { energy, lastRegen } = regenOverdriveEnergy(state.overdriveEnergy, state.lastEnergyRegen, now)
     if (energy < 1) return false
-    set({
+    set(s => ({
       overdriveEnergy: energy - 1,
       lastEnergyRegen: lastRegen, // regen already set the clock correctly (now if it was full)
       overclockActiveUntil: now + OVERCLOCK_DURATION_MS,
-    })
+      overdrivesUsed: s.overdrivesUsed + 1,
+    }))
     return true
   },
 
@@ -460,7 +463,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state.bits < cost) return false
     set(s => {
       const chipCells = { ...s.chipCells, [key]: { type, level: 1 } }
-      const next: Partial<GameState> = { bits: s.bits - cost, chipCells }
+      const next: Partial<GameState> = { bits: s.bits - cost, chipCells, chipModulesPlaced: s.chipModulesPlaced + 1 }
       return { ...next, ...computeDerived({ ...s, ...next }) }
     })
     get().checkAchievements()
@@ -778,6 +781,8 @@ export function getSerializableState(): GameState {
     chipCells: s.chipCells,
     overdriveEnergy: s.overdriveEnergy,
     lastEnergyRegen: s.lastEnergyRegen,
+    overdrivesUsed: s.overdrivesUsed,
+    chipModulesPlaced: s.chipModulesPlaced,
   }
 }
 
