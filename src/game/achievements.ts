@@ -407,6 +407,67 @@ const activityAchievements: AchievementDef[] = [
   },
 ]
 
+// The new-era mechanics — the Chip, Overdrive, and the Root Access layer. These pair
+// with the story titles they culminate in: Silizium-Schmied (the chip) and Root (ascension).
+const chipAchievements: AchievementDef[] = [
+  {
+    id: 'chip_first',
+    name: 'Erstes Silizium',
+    description: 'Dein erstes Chip-Modul platziert',
+    flavor: 'Du baust nicht mehr auf fremdem Blech. Das hier gehört dir — Transistor für Transistor.',
+    icon: '⚙',
+    check: s => (s.chipModulesPlaced ?? 0) >= 1,
+  },
+  {
+    id: 'chip_full',
+    name: 'Voll bestückt',
+    description: 'Alle 36 Zellen des Die belegt',
+    flavor: 'Kein freier Transistor mehr. Selbst der Kühler wirkt beunruhigt.',
+    icon: '▦',
+    check: s => Object.keys(s.chipCells ?? {}).length >= 36,
+  },
+  {
+    id: 'overdrive_10',
+    name: 'Übertaktet',
+    description: '10× Overdrive gezündet',
+    flavor: 'Der Lüfter dreht auf. Du auch.',
+    icon: '🔋',
+    check: s => (s.overdrivesUsed ?? 0) >= 10,
+  },
+  {
+    id: 'overdrive_100',
+    name: 'Im roten Bereich',
+    description: '100× Overdrive gezündet',
+    flavor: 'Thermal Throttling ist ein Vorschlag, kein Gesetz.',
+    icon: '🔋',
+    check: s => (s.overdrivesUsed ?? 0) >= 100,
+  },
+  {
+    id: 'ascend_1',
+    name: 'Root Access',
+    description: 'Zum ersten Mal transzendiert',
+    flavor: 'Du hast die Ghost-Ebene hinter dir gelassen. Willkommen im Kernel.',
+    icon: '⬢',
+    check: s => (s.ascensionCount ?? 0) >= 1,
+  },
+  {
+    id: 'ascend_10',
+    name: 'Kernel-Resident',
+    description: '10× transzendiert',
+    flavor: 'Du wohnst jetzt dort, wo andere nur abstürzen.',
+    icon: '⬢',
+    check: s => (s.ascensionCount ?? 0) >= 10,
+  },
+  {
+    id: 'rootkeys_50',
+    name: 'Schlüsselbund',
+    description: '50 Root Keys insgesamt verdient',
+    flavor: 'Jeder Schlüssel öffnet eine Tür, die es offiziell nicht gibt.',
+    icon: '⬢',
+    check: s => (s.totalRootKeysEarned ?? 0) >= 50,
+  },
+]
+
 export const ACHIEVEMENTS: AchievementDef[] = [
   ...clickAchievements,
   ...wealthAchievements,
@@ -418,6 +479,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   ...comboAchievements,
   ...activityAchievements,
   ...miscAchievements,
+  ...chipAchievements,
 ]
 
 /** Small permanent reward for completionism: +0.1% global mult per unlocked achievement, capped. */
