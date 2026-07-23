@@ -85,6 +85,13 @@ export const CHIP_TRAP_CAP = 0.5
 // budget. Defensive cells cost a lot, so a well-walled Vault repels sloppy routing.
 export const RAID_BASE_BUDGET = 26            // resistance a breach may spend, before losing
 export const RAID_LOOT_PCT = 0.05             // won loot = this fraction of the target's run bits
+// Trace: even an unwalled base resists a breach. Every cell you step on is "traced", and
+// this per-step cost scales with the target's overall defence rating — so a heavily
+// fortified base is hard to cross however its modules are arranged, and short approaches
+// (a vault buried in the centre is far harder than one near an edge) matter. This is what
+// makes the visible defence number actually bite, not just perfectly-built mazes.
+export const RAID_TRACE_DEFENSE_DIVISOR = 1400 // +1 trace/step per this much defence rating
+export const RAID_TRACE_CAP = 12               // hard cap so extreme ratings stay finite
 // A breach costs 1 raid energy. The pool is small and refills slowly — raids are a
 // scarce, deliberate action (a handful per day), not something you spam.
 export const RAID_ENERGY_MAX = 5

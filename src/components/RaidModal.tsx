@@ -8,6 +8,7 @@ import {
   isEdgeCell,
   raidGoalCell,
   raidBudget,
+  raidTrace,
   raidLoot,
   minBreachResistance,
   validateBreachPath,
@@ -57,24 +58,26 @@ export function RaidModal({ onClose }: Props) {
   const cells = target?.chipCells ?? {}
   const goal = target ? raidGoalCell(cells) : -1
   const budget = raidBudget()
-  const val = validateBreachPath(cells, goal, path)
+  const trace = target ? raidTrace(target.defenseRating) : 0
+  const val = validateBreachPath(cells, goal, path, trace)
   const trap = pathTrapChance(cells, path)
   const atGoal = val.valid && val.reachedGoal
-  const minRes = target ? minBreachResistance(cells, goal) : 0
+  const minRes = target ? minBreachResistance(cells, goal, trace) : 0
   const breachable = minRes <= budget
 
   const clickCell = (i: number) => {
     if (phase !== 'ready' || result) return
     if (path.length === 0) {
       if (!isEdgeCell(i)) return
-      if (cellResistance(cells[String(i)]) > budget) return
+      if (cellResistance(cells[String(i)]) + trace > budget) return
       setPath([i]); playSound('click')
       return
     }
     if (path.length >= 2 && i === path[path.length - 2]) { setPath(path.slice(0, -1)); return } // step back
     if (path.includes(i)) return
     if (!chipNeighbours(path[path.length - 1]).includes(i)) return
-    if (val.resistance + cellResistance(cells[String(i)]) > budget) return
+    const nextCost = (i === goal ? 0 : cellResistance(cells[String(i)])) + trace
+    if (val.resistance + nextCost > budget) return
     setPath([...path, i]); playSound('click')
   }
 
@@ -142,6 +145,11 @@ export function RaidModal({ onClose }: Props) {
                 <span className="text-slate-500">Loot bei Sieg: <b className="text-amber-300">{formatBits(raidLoot(target))}</b></span>
                 <span className={breachable ? 'text-emerald-400/70' : 'text-red-400/70'}>{breachable ? 'angreifbar' : 'stark verteidigt'}</span>
               </div>
+              {trace > 0 && (
+                <div className="mt-1 font-mono text-[10px] text-orange-400/80">
+                  ⚠ Trace: <b>+{trace}</b> Widerstand pro Schritt — kurze Wege zählen
+                </div>
+              )}
             </div>
 
             {/* Objective + meters */}

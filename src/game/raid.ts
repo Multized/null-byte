@@ -11,6 +11,8 @@ import {
   RAID_RES_FIREWALL_PER_LEVEL,
   RAID_RES_HONEYPOT_BASE,
   RAID_RES_HONEYPOT_PER_LEVEL,
+  RAID_TRACE_DEFENSE_DIVISOR,
+  RAID_TRACE_CAP,
   CHIP_TRAP_PER_LEVEL,
   CHIP_TRAP_CAP,
 } from './constants'
@@ -65,9 +67,23 @@ export function raidGoalCell(cells: Record<string, ChipCell>): number {
 }
 
 export function raidBudget(): number {
-  // Pure-skill for now: a flat budget. The defender's layout (walling the vault with
-  // firewalls) is what makes a breach hard, not any attacker stat.
+  // Pure-skill: a flat budget. What makes a breach hard is the defender — their layout
+  // (walls between edge and vault) plus their trace level (see raidTrace).
   return RAID_BASE_BUDGET
+}
+
+/**
+ * Per-step trace cost added to every cell of a breach path, scaled by the target's overall
+ * defence rating and capped. This is what makes defence matter even on a base that never
+ * walled its vault: crossing a well-defended die is costly step for step.
+ */
+export function raidTrace(defenseRating: number): number {
+  return Math.min(RAID_TRACE_CAP, Math.round((defenseRating ?? 0) / RAID_TRACE_DEFENSE_DIVISOR))
+}
+
+/** Cost of stepping onto cell `i` during a breach: its resistance (0 for the goal) + trace. */
+function stepCost(cells: Record<string, ChipCell>, i: number, goal: number, trace: number): number {
+  return (i === goal ? 0 : cellResistance(cells[String(i)])) + trace
 }
 
 export function raidLoot(target: RaidTarget): number {
@@ -78,19 +94,19 @@ export function raidLoot(target: RaidTarget): number {
  * Cheapest breach resistance from any edge to the goal (Dijkstra over cell resistances).
  * Used to tell the player up front whether a base is breachable and how tough it is.
  */
-export function minBreachResistance(cells: Record<string, ChipCell>, goal: number): number {
+export function minBreachResistance(cells: Record<string, ChipCell>, goal: number, trace = 0): number {
   const dist = new Array(N).fill(Infinity)
-  const res = (i: number) => (i === goal ? 0 : cellResistance(cells[String(i)]))
-  // Multi-source: every edge cell is a valid entry, seeded with its own resistance.
+  const cost = (i: number) => stepCost(cells, i, goal, trace)
+  // Multi-source: every edge cell is a valid entry, seeded with its own step cost.
   const pq: [number, number][] = []
-  for (let i = 0; i < N; i++) if (isEdgeCell(i)) { dist[i] = res(i); pq.push([dist[i], i]) }
+  for (let i = 0; i < N; i++) if (isEdgeCell(i)) { dist[i] = cost(i); pq.push([dist[i], i]) }
   while (pq.length) {
     pq.sort((a, b) => a[0] - b[0])
     const [d, u] = pq.shift()!
     if (d > dist[u]) continue
     if (u === goal) return d
     for (const v of chipNeighbours(u)) {
-      const nd = d + res(v)
+      const nd = d + cost(v)
       if (nd < dist[v]) { dist[v] = nd; pq.push([nd, v]) }
     }
   }
@@ -116,14 +132,15 @@ export function validateBreachPath(
   cells: Record<string, ChipCell>,
   goal: number,
   path: number[],
+  trace = 0,
 ): { valid: boolean; resistance: number; reachedGoal: boolean } {
   if (path.length === 0) return { valid: false, resistance: 0, reachedGoal: false }
   if (!isEdgeCell(path[0])) return { valid: false, resistance: 0, reachedGoal: false }
-  let resistance = cellResistance(cells[String(path[0])])
+  let resistance = stepCost(cells, path[0], goal, trace)
   for (let i = 1; i < path.length; i++) {
     if (path.slice(0, i).includes(path[i])) return { valid: false, resistance, reachedGoal: false } // no revisits
     if (!chipNeighbours(path[i - 1]).includes(path[i])) return { valid: false, resistance, reachedGoal: false }
-    resistance += cellResistance(cells[String(path[i])])
+    resistance += stepCost(cells, path[i], goal, trace)
   }
   return { valid: true, resistance, reachedGoal: path[path.length - 1] === goal }
 }
