@@ -205,11 +205,13 @@ export default function App() {
   }, [updateLastActive, playerId, playerName, totalBitsEarned, prestigeCount])
 
   const chipUnlocked = isChipUnlocked(state)
-  const desktopTabs = [
-    { id: 'shop' as DesktopTab, label: 'SHOP', icon: '⬡' },
-    { id: 'mods' as DesktopTab, label: 'MODS', icon: '⚡', badge: upgradeCount },
-    ...(chipUnlocked ? [{ id: 'chip' as DesktopTab, label: 'CHIP', icon: '▦' }] : []),
-    { id: 'agent' as DesktopTab, label: 'AGENT', icon: '◈' },
+  // The CHIP tab is always shown — locked with a 🔒 until unlocked — so new players
+  // discover the mechanic exists instead of it appearing out of nowhere.
+  const desktopTabs: { id: DesktopTab; label: string; icon: string; badge?: number; locked?: boolean }[] = [
+    { id: 'shop', label: 'SHOP', icon: '⬡' },
+    { id: 'mods', label: 'MODS', icon: '⚡', badge: upgradeCount },
+    { id: 'chip', label: 'CHIP', icon: '▦', locked: !chipUnlocked },
+    { id: 'agent', label: 'AGENT', icon: '◈' },
   ]
 
   // Visual tier (0-5): grows with progress within a run and permanently with prestige count —
@@ -263,8 +265,9 @@ export default function App() {
                   }
                 `}
               >
-                <span className="text-base leading-none">{tab.icon}</span>
-                <span>{tab.label}</span>
+                <span className={`text-base leading-none ${tab.locked ? 'opacity-40' : ''}`}>{tab.icon}</span>
+                <span className={tab.locked ? 'opacity-50' : ''}>{tab.label}</span>
+                {tab.locked && <span className="absolute top-1.5 right-3 text-[9px] opacity-60">🔒</span>}
                 {tab.badge !== undefined && tab.badge > 0 && (
                   <span className="absolute top-1.5 right-3 min-w-[16px] h-4 px-1 rounded-full
                     bg-cyan-500 text-[#050508] font-mono font-bold text-[9px]
@@ -329,9 +332,9 @@ export default function App() {
             { id: 'run' as MobileTab, label: 'RUN', icon: '⌨' },
             { id: 'shop' as MobileTab, label: 'SHOP', icon: '⬡' },
             { id: 'upgrades' as MobileTab, label: 'MODS', icon: '⚡', badge: upgradeCount },
-            ...(chipUnlocked ? [{ id: 'chip' as MobileTab, label: 'CHIP', icon: '▦' }] : []),
+            { id: 'chip' as MobileTab, label: 'CHIP', icon: '▦', locked: !chipUnlocked },
             { id: 'rank' as MobileTab, label: 'AGENT', icon: '◈' },
-          ] as { id: MobileTab; label: string; icon: string; badge?: number }[]).map(tab => (
+          ] as { id: MobileTab; label: string; icon: string; badge?: number; locked?: boolean }[]).map(tab => (
             <button
               key={tab.id}
               onClick={() => setMobileTab(tab.id)}
@@ -341,8 +344,9 @@ export default function App() {
                 ${mobileTab === tab.id ? 'text-cyan-400 bg-cyan-950/20' : 'text-slate-600 hover:text-slate-400'}
               `}
             >
-              <span className="text-base">{tab.icon}</span>
-              <span>{tab.label}</span>
+              <span className={`text-base ${tab.locked ? 'opacity-40' : ''}`}>{tab.icon}</span>
+              <span className={tab.locked ? 'opacity-50' : ''}>{tab.label}</span>
+              {tab.locked && <span className="absolute top-1 right-2 text-[8px] opacity-60">🔒</span>}
               {tab.badge != null && tab.badge > 0 && (
                 <span className="absolute top-1.5 right-3 min-w-[16px] h-4 px-1 rounded-full
                   bg-cyan-500 text-[#050508] font-mono font-bold text-[9px]

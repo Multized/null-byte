@@ -34,6 +34,7 @@ export function AccountPanel({ entries }: Props) {
     useGameStore.getState().resetAll()
     // Truly start from zero: let the tutorial reappear
     localStorage.removeItem('null_byte_onboarding_step')
+    localStorage.removeItem('null_byte_onboarding_v2')
     saveGame()
     // Push the wiped state (0 progress) to the leaderboard under the kept name
     submitScore(useGameStore.getState())

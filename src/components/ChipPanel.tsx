@@ -52,14 +52,21 @@ export function ChipPanel() {
   if (!isChipUnlocked(state)) {
     const pct = Math.min(1, state.totalBitsEarned / CHIP_UNLOCK_BITS)
     return (
-      <div className="p-4 text-center space-y-3">
-        <div className="text-3xl opacity-40">🔲</div>
-        <div className="font-mono text-sm text-slate-400">Der Chip ist noch versiegelt</div>
-        <div className="font-mono text-[11px] text-slate-600">
-          Schaltet frei bei {formatBits(CHIP_UNLOCK_BITS)} verdienten Bits — oder dem ersten Prestige.
-        </div>
-        <div className="max-w-xs mx-auto h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
-          <div className="h-full bg-cyan-600/50 transition-all duration-500" style={{ width: `${pct * 100}%` }} />
+      <div className="p-5 text-center space-y-3">
+        <div className="text-4xl opacity-50">🔲</div>
+        <div className="font-mono text-sm text-slate-300">Der Chip · gesperrt</div>
+        <p className="font-mono text-[11px] text-slate-500 leading-relaxed max-w-xs mx-auto">
+          Deine eigene Basis: ein Prozessor, den du aus <span className="text-cyan-400/80">Modulen</span> aufbaust —
+          Cores, Cache, ALUs. Jedes gibt einen <span className="text-cyan-400/80">permanenten Bonus</span> auf
+          Produktion, Klick, Offline und mehr. Er bleibt über jedes Prestige und jede Ascension.
+        </p>
+        <div className="pt-1">
+          <div className="font-mono text-[10px] text-slate-600 mb-1.5">
+            Schaltet frei bei {formatBits(CHIP_UNLOCK_BITS)} verdienten Bits · {Math.floor(pct * 100)}%
+          </div>
+          <div className="max-w-xs mx-auto h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
+            <div className="h-full bg-cyan-600/50 transition-all duration-500" style={{ width: `${pct * 100}%` }} />
+          </div>
         </div>
       </div>
     )
