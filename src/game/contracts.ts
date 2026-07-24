@@ -1,5 +1,10 @@
 import type { ActiveContract, ContractType, GameState } from './types'
 import { calcBitsPerSecond, contractRewardMultiplier, isChipUnlocked } from './utils'
+import { CHIP_SIZE } from './constants'
+
+const CHIP_CELLS = CHIP_SIZE * CHIP_SIZE
+/** Empty cells left on the chip die — a "place module" contract needs at least one. */
+const freeChipCells = (s: GameState) => CHIP_CELLS - Object.keys(s.chipCells ?? {}).length
 
 export interface ContractTemplate {
   type: ContractType
@@ -103,12 +108,15 @@ const TEMPLATES: ContractTemplate[] = [
   {
     type: 'chip_module',
     icon: '▦',
-    makeTarget: () => 1 + Math.floor(Math.random() * 2), // 1–2
+    // Clamp to the free cells so it's always completable — never ask for more modules
+    // than there's room to place.
+    makeTarget: s => Math.max(1, Math.min(freeChipCells(s), 1 + Math.floor(Math.random() * 2))), // 1–2
     counter: s => s.chipModulesPlaced ?? 0,
     label: t => t === 1 ? 'Platziere 1 Chip-Modul' : `Platziere ${t} Chip-Module`,
     rewardSeconds: 120,
     gcChance: 0.1,
-    available: isChipUnlocked, // no point offering it before the chip exists
+    // Only when the chip exists AND there's a free cell to place into (a full die can't).
+    available: s => isChipUnlocked(s) && freeChipCells(s) >= 1,
   },
 ]
 
