@@ -2,8 +2,10 @@ import type { ChipCell } from './types'
 import {
   CHIP_SIZE,
   CHIP_MODULES,
+  CHIP_MODULE_MAX_LEVEL,
   RAID_BASE_BUDGET,
-  RAID_LOOT_PCT,
+  RAID_LOOT_VAULT_PCT,
+  RAID_LOOT_NODE_PCT,
   RAID_RES_EMPTY,
   RAID_RES_ECON,
   RAID_RES_BUS,
@@ -13,10 +15,13 @@ import {
   RAID_RES_HONEYPOT_PER_LEVEL,
   RAID_TRACE_DEFENSE_DIVISOR,
   RAID_TRACE_CAP,
-  CHIP_TRAP_PER_LEVEL,
-  CHIP_TRAP_CAP,
+  RAID_DETECT_PER_STEP,
+  RAID_DETECT_FIREWALL,
+  RAID_DETECT_HONEYPOT,
+  RAID_DETECT_PER_TRACE,
+  RAID_EXTRACT_MAX_REPEL,
 } from './constants'
-import { chipNeighbours } from './utils'
+import { chipNeighbours, chipModuleDef } from './utils'
 
 export interface RaidTarget {
   playerId: string
@@ -86,8 +91,47 @@ function stepCost(cells: Record<string, ChipCell>, i: number, goal: number, trac
   return (i === goal ? 0 : cellResistance(cells[String(i)])) + trace
 }
 
-export function raidLoot(target: RaidTarget): number {
-  return Math.max(1, (target.totalBitsEarned ?? 0) * RAID_LOOT_PCT)
+const ECON_EFFECTS = new Set(['production', 'click', 'offline', 'contract'])
+
+export interface LootNode { value: number; kind: 'vault' | 'data' }
+
+/**
+ * The plunderable data nodes on a base, keyed by cell index. The Vault is the jackpot;
+ * economy modules are smaller nodes whose worth scales with their level. Loot is minted
+ * (the victim loses nothing) but scaled by the target's wealth and their own build, so a
+ * rich, module-dense base is genuinely worth more to crack than a bare one.
+ */
+export function lootNodes(cells: Record<string, ChipCell>, wealth: number): Record<string, LootNode> {
+  const out: Record<string, LootNode> = {}
+  const w = Math.max(0, wealth ?? 0)
+  for (const key of Object.keys(cells)) {
+    const cell = cells[key]
+    const def = chipModuleDef(cell.type)
+    if (!def) continue
+    if (def.effect === 'vault') out[key] = { value: Math.max(1, w * RAID_LOOT_VAULT_PCT), kind: 'vault' }
+    else if (ECON_EFFECTS.has(def.effect)) {
+      out[key] = { value: Math.max(1, w * RAID_LOOT_NODE_PCT * (cell.level / CHIP_MODULE_MAX_LEVEL)), kind: 'data' }
+    }
+  }
+  return out
+}
+
+/** Total loot available across every node — the ceiling for a perfect, greedy sweep. */
+export function totalLoot(cells: Record<string, ChipCell>, wealth: number): number {
+  return Object.values(lootNodes(cells, wealth)).reduce((s, n) => s + n.value, 0)
+}
+
+/** Detection added by stepping onto a cell: a base rate + trace, spiked by defensive cells. */
+export function cellDetection(cell: ChipCell | undefined, trace: number): number {
+  let d = RAID_DETECT_PER_STEP + trace * RAID_DETECT_PER_TRACE
+  if (cell?.type === 'firewall') d += RAID_DETECT_FIREWALL
+  else if (cell?.type === 'honeypot') d += RAID_DETECT_HONEYPOT
+  return d
+}
+
+/** Chance an extraction is repelled, from accumulated detection (0..1), capped. */
+export function extractRepelChance(detection: number): number {
+  return Math.min(RAID_EXTRACT_MAX_REPEL, Math.max(0, detection))
 }
 
 /**
@@ -111,20 +155,6 @@ export function minBreachResistance(cells: Record<string, ChipCell>, goal: numbe
     }
   }
   return dist[goal]
-}
-
-/**
- * Trap chance of a path: Honeypots the route steps on can auto-repel the breach. Firewalls
- * cost resistance (route around them); Honeypots add risk (route around, or gamble). This is
- * what lets a defence repel a raid, so the defender earns a bounty.
- */
-export function pathTrapChance(cells: Record<string, ChipCell>, path: number[]): number {
-  let levels = 0
-  for (const idx of path) {
-    const cell = cells[String(idx)]
-    if (cell?.type === 'honeypot') levels += cell.level
-  }
-  return Math.min(CHIP_TRAP_CAP, levels * CHIP_TRAP_PER_LEVEL)
 }
 
 /** Validate a proposed path (ordered cell indices) as a legal breach route. */

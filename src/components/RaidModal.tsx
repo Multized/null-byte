@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useGameStore } from '../game/store'
 import { fetchRaidTarget, resolveRaid } from '../game/supabase'
 import { formatBits, chipNeighbours, raidEnergyInfo } from '../game/utils'
@@ -6,23 +6,31 @@ import {
   type RaidTarget,
   cellResistance,
   isEdgeCell,
-  raidGoalCell,
-  raidBudget,
   raidTrace,
-  raidLoot,
-  minBreachResistance,
-  validateBreachPath,
-  pathTrapChance,
+  lootNodes,
+  totalLoot,
+  cellDetection,
+  extractRepelChance,
 } from '../game/raid'
-import { CHIP_SIZE, RAID_ENERGY_MAX } from '../game/constants'
+import {
+  CHIP_SIZE,
+  RAID_ENERGY_MAX,
+  RAID_BASE_BUDGET,
+  RAID_KIT_ICE,
+  RAID_KIT_SPOOF,
+  RAID_KIT_BANDWIDTH,
+  RAID_BANDWIDTH_BONUS,
+} from '../game/constants'
 import { playSound } from '../game/sound'
 
 interface Props { onClose: () => void }
 
 const N = CHIP_SIZE * CHIP_SIZE
-const ACCENT: Record<string, string> = { cyan: '#22d3ee', emerald: '#34d399', amber: '#fbbf24', purple: '#a78bfa', red: '#f87171' }
+const ACCENT = { red: '#f87171', cyan: '#22d3ee', amber: '#fbbf24', emerald: '#34d399' }
 
 type Phase = 'loading' | 'ready' | 'result' | 'none' | 'noenergy'
+type Tool = 'ice' | 'spoof'
+type Mods = Record<number, Tool>
 
 function fmtDuration(ms: number): string {
   const s = Math.max(0, Math.ceil(ms / 1000))
@@ -31,6 +39,8 @@ function fmtDuration(ms: number): string {
   if (m < 60) return `${m}m`
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`
 }
+
+const freshKit = () => ({ ice: RAID_KIT_ICE, spoof: RAID_KIT_SPOOF, bandwidth: RAID_KIT_BANDWIDTH })
 
 export function RaidModal({ onClose }: Props) {
   const state = useGameStore(s => s)
@@ -41,13 +51,17 @@ export function RaidModal({ onClose }: Props) {
   const [phase, setPhase] = useState<Phase>(energy.energy < 1 ? 'noenergy' : 'loading')
   const [target, setTarget] = useState<RaidTarget | null>(null)
   const [path, setPath] = useState<number[]>([])
-  const [result, setResult] = useState<{ won: boolean; loot: number; trapped: boolean } | null>(null)
+  const [mods, setMods] = useState<Mods>({})
+  const [kit, setKit] = useState(freshKit())
+  const [bonusBudget, setBonusBudget] = useState(0)
+  const [toolMode, setToolMode] = useState<Tool | null>(null)
+  const [result, setResult] = useState<{ won: boolean; loot: number } | null>(null)
   const [, tick] = useState(0)
 
   useEffect(() => { const id = setInterval(() => tick(n => n + 1), 500); return () => clearInterval(id) }, [])
 
   const loadTarget = useCallback(async () => {
-    setPhase('loading'); setPath([]); setResult(null)
+    setPhase('loading'); setPath([]); setMods({}); setKit(freshKit()); setBonusBudget(0); setToolMode(null); setResult(null)
     const t = await fetchRaidTarget(playerId)
     setTarget(t)
     setPhase(t ? 'ready' : 'none')
@@ -56,47 +70,69 @@ export function RaidModal({ onClose }: Props) {
   useEffect(() => { if (energy.energy >= 1) loadTarget() /* eslint-disable-next-line */ }, [])
 
   const cells = target?.chipCells ?? {}
-  const goal = target ? raidGoalCell(cells) : -1
-  const budget = raidBudget()
   const trace = target ? raidTrace(target.defenseRating) : 0
-  const val = validateBreachPath(cells, goal, path, trace)
-  const trap = pathTrapChance(cells, path)
-  const atGoal = val.valid && val.reachedGoal
-  const minRes = target ? minBreachResistance(cells, goal, trace) : 0
-  const breachable = minRes <= budget
+  const nodes = useMemo(() => target ? lootNodes(cells, target.totalBitsEarned) : {}, [target]) // eslint-disable-line react-hooks/exhaustive-deps
+  const availLoot = useMemo(() => target ? totalLoot(cells, target.totalBitsEarned) : 0, [target]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const budget = RAID_BASE_BUDGET + bonusBudget
+  const effRes = (i: number) => mods[i] === 'ice' ? 1 : mods[i] === 'spoof' ? 2 : cellResistance(cells[String(i)])
+  const effDet = (i: number) => cellDetection(mods[i] ? undefined : cells[String(i)], trace)
+
+  const spent = path.reduce((s, i) => s + effRes(i), 0)
+  const detection = Math.min(1, path.reduce((s, i) => s + effDet(i), 0))
+  const runLoot = path.reduce((s, i) => s + (nodes[String(i)]?.value ?? 0), 0)
+  const captured = path.filter(i => nodes[String(i)]).length
+  const repel = extractRepelChance(detection)
+  const active = phase === 'ready' && !result
 
   const clickCell = (i: number) => {
-    if (phase !== 'ready' || result) return
-    if (path.length === 0) {
-      if (!isEdgeCell(i)) return
-      if (cellResistance(cells[String(i)]) + trace > budget) return
-      setPath([i]); playSound('click')
+    if (!active) return
+    const cell = cells[String(i)]
+    // Tool targeting mode: click a valid cell to apply the selected tool.
+    if (toolMode) {
+      if (toolMode === 'ice' && cell?.type === 'firewall' && !mods[i] && kit.ice > 0) {
+        setMods(m => ({ ...m, [i]: 'ice' })); setKit(k => ({ ...k, ice: k.ice - 1 })); playSound('buy')
+      } else if (toolMode === 'spoof' && cell?.type === 'honeypot' && !mods[i] && kit.spoof > 0) {
+        setMods(m => ({ ...m, [i]: 'spoof' })); setKit(k => ({ ...k, spoof: k.spoof - 1 })); playSound('buy')
+      }
+      setToolMode(null)
       return
+    }
+    // Routing.
+    if (path.length === 0) {
+      if (!isEdgeCell(i) || effRes(i) > budget) return
+      setPath([i]); playSound('click'); return
     }
     if (path.length >= 2 && i === path[path.length - 2]) { setPath(path.slice(0, -1)); return } // step back
     if (path.includes(i)) return
     if (!chipNeighbours(path[path.length - 1]).includes(i)) return
-    const nextCost = (i === goal ? 0 : cellResistance(cells[String(i)])) + trace
-    if (val.resistance + nextCost > budget) return
+    if (spent + effRes(i) > budget) return
     setPath([...path, i]); playSound('click')
   }
 
-  const commitBreach = async () => {
-    if (!target || !atGoal || energy.energy < 1) return
-    const trapped = Math.random() < trap
-    const won = !trapped
-    const loot = won ? raidLoot(target) : 0
+  const selectTool = (t: Tool) => { if (!active) return; setToolMode(m => m === t ? null : t) }
+  const applyBandwidth = () => {
+    if (!active || kit.bandwidth < 1) return
+    setBonusBudget(b => b + RAID_BANDWIDTH_BONUS); setKit(k => ({ ...k, bandwidth: k.bandwidth - 1 })); playSound('buy')
+  }
+
+  const extract = async () => {
+    if (!target || runLoot <= 0 || energy.energy < 1) return
+    const won = Math.random() >= repel
+    const loot = won ? Math.round(runLoot) : 0
     recordRaid(won, loot) // consumes 1 raid energy
-    setResult({ won, loot, trapped })
+    setResult({ won, loot })
     setPhase('result')
     playSound(won ? 'prestige' : 'event')
     await resolveRaid(playerId, target.playerId, won)
   }
 
+  const detColor = detection < 0.34 ? ACCENT.emerald : detection < 0.67 ? ACCENT.amber : ACCENT.red
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="w-full max-w-md card border-red-800/40 p-5 space-y-3 max-h-[90vh] flex flex-col">
+      <div className="w-full max-w-md card border-red-800/40 p-5 space-y-3 max-h-[92vh] overflow-y-auto flex flex-col">
         <div className="flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <span className="font-mono text-lg font-semibold text-red-300">⚔ Raid</span>
@@ -117,7 +153,7 @@ export function RaidModal({ onClose }: Props) {
             <div className="text-3xl opacity-50">⚡</div>
             <div className="font-mono text-sm text-slate-400">Keine Raid-Energie</div>
             <div className="font-mono text-xs text-slate-600">Nächste Energie in {fmtDuration(energy.msToNext)}</div>
-            <div className="font-mono text-[10px] text-slate-700">Ein Breach kostet 1 von {RAID_ENERGY_MAX} Energie — sie lädt langsam über Stunden nach.</div>
+            <div className="font-mono text-[10px] text-slate-700">Ein Raid kostet 1 von {RAID_ENERGY_MAX} Energie — sie lädt langsam über Stunden nach.</div>
           </div>
         )}
 
@@ -139,77 +175,102 @@ export function RaidModal({ onClose }: Props) {
             <div className="card bg-[#0a0a10] border-red-900/30 p-2.5 shrink-0">
               <div className="flex items-center justify-between">
                 <div className="font-mono text-sm text-slate-200">{target.name}<span className="text-purple-400/60">#{target.nameTag}</span></div>
-                <div className="font-mono text-[11px] text-red-400/80">🛡 {target.defenseRating.toLocaleString('de-DE')}</div>
+                <div className="font-mono text-[11px] text-red-400/80">🛡 {target.defenseRating.toLocaleString('de-DE')}{trace > 0 && <span className="text-orange-400/70"> · Trace +{trace}</span>}</div>
               </div>
-              <div className="flex items-center justify-between mt-1 font-mono text-[10px]">
-                <span className="text-slate-500">Loot bei Sieg: <b className="text-amber-300">{formatBits(raidLoot(target))}</b></span>
-                <span className={breachable ? 'text-emerald-400/70' : 'text-red-400/70'}>{breachable ? 'angreifbar' : 'stark verteidigt'}</span>
+              <div className="mt-1 font-mono text-[10px] text-slate-500">
+                Beute im Netz: <b className="text-amber-300">{formatBits(availLoot)}</b> über {Object.keys(nodes).length} Knoten
               </div>
-              {trace > 0 && (
-                <div className="mt-1 font-mono text-[10px] text-orange-400/80">
-                  ⚠ Trace: <b>+{trace}</b> Widerstand pro Schritt — kurze Wege zählen
+            </div>
+
+            {!result && (
+              <>
+                {/* Meters */}
+                <div className="grid grid-cols-2 gap-2 shrink-0">
+                  <div>
+                    <div className="flex items-center justify-between font-mono text-[10px] text-slate-500">
+                      <span>Bandbreite</span><span className={spent > budget ? 'text-red-400' : 'text-cyan-300'}>{spent}/{budget}</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-800/60 rounded-full overflow-hidden mt-0.5">
+                      <div className="h-full bg-cyan-500/70 transition-all" style={{ width: `${Math.min(100, (spent / budget) * 100)}%` }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between font-mono text-[10px] text-slate-500">
+                      <span>Entdeckung</span><span style={{ color: detColor }}>{Math.round(detection * 100)}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-800/60 rounded-full overflow-hidden mt-0.5">
+                      <div className="h-full transition-all" style={{ width: `${detection * 100}%`, background: detColor }} />
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
 
-            {/* Objective + meters */}
-            <div className="flex items-center justify-between font-mono text-[10px] text-slate-500 shrink-0">
-              <span>Route vom <span className="text-cyan-300">Rand</span> zum <span className="text-amber-300">◈ Ziel</span></span>
-              <span>Widerstand <b className={val.resistance > budget ? 'text-red-400' : 'text-cyan-300'}>{val.resistance}</b>/{budget}</span>
-            </div>
-            <div className="w-full h-1.5 bg-slate-800/60 rounded-full overflow-hidden shrink-0">
-              <div className="h-full bg-cyan-500/70 transition-all" style={{ width: `${Math.min(100, (val.resistance / budget) * 100)}%` }} />
-            </div>
+                {/* Loot secured so far */}
+                <div className="flex items-center justify-between font-mono text-[11px] shrink-0">
+                  <span className="text-slate-500">Beute gesichert</span>
+                  <span className="text-amber-300 font-semibold tabular-nums">{formatBits(runLoot)} <span className="text-slate-600 text-[10px]">· {captured} Knoten</span></span>
+                </div>
+              </>
+            )}
 
-            {/* The target as a tactical breach map — semantic tiles, not the builder's icons */}
+            {/* The breach map */}
             <div className="mx-auto" style={{ maxWidth: 'min(92vw, 340px)' }}>
               <div className="grid gap-[3px] p-2.5 rounded-md bg-[#070710] border border-slate-800/60"
                 style={{ gridTemplateColumns: `repeat(${CHIP_SIZE}, minmax(0,1fr))`, gridTemplateRows: `repeat(${CHIP_SIZE}, minmax(0,1fr))`, aspectRatio: '1/1' }}>
                 {Array.from({ length: N }, (_, i) => {
                   const cell = cells[String(i)]
-                  const isFirewall = cell?.type === 'firewall'
-                  const isHoneypot = cell?.type === 'honeypot'
-                  const res = cellResistance(cell)
+                  const mod = mods[i]
+                  const isFirewall = cell?.type === 'firewall' && !mod
+                  const isHoneypot = cell?.type === 'honeypot' && !mod
+                  const node = nodes[String(i)]
                   const inPath = path.includes(i)
                   const pathPos = path.indexOf(i)
                   const isStart = pathPos === 0
                   const isLast = pathPos === path.length - 1 && inPath
-                  const isGoal = i === goal
                   const edge = isEdgeCell(i)
-                  // Highlight only cheap passable edge cells as recommended entry points;
-                  // edge firewalls/honeypots stay walls (you *can* start there, just not ideal).
-                  const entryHint = !inPath && edge && path.length === 0 && !isGoal && !isFirewall && !isHoneypot
-                  const canStart = phase === 'ready' && !result
+                  const entryHint = !inPath && edge && path.length === 0 && !node && !isFirewall && !isHoneypot
+                  const toolTarget = toolMode === 'ice' ? isFirewall : toolMode === 'spoof' ? isHoneypot : false
+                  const res = effRes(i)
 
-                  // Base tile look by tactical role (path overlay wins visually).
                   let bg = '#0b0b14', border = 'rgba(51,65,85,0.35)', glow: string | undefined
-                  if (isGoal) { bg = 'rgba(251,191,36,0.14)'; border = '#fbbf24'; glow = '0 0 12px -2px #fbbf24' }
+                  if (node?.kind === 'vault') { bg = 'rgba(251,191,36,0.14)'; border = 'rgba(251,191,36,0.7)'; glow = '0 0 12px -3px #fbbf24' }
+                  else if (node) { bg = 'rgba(52,211,153,0.12)'; border = 'rgba(52,211,153,0.5)' }
                   else if (isFirewall) { bg = 'repeating-linear-gradient(45deg, rgba(248,113,113,0.30) 0 3px, rgba(248,113,113,0.08) 3px 7px)'; border = 'rgba(248,113,113,0.55)' }
                   else if (isHoneypot) { bg = 'rgba(251,191,36,0.14)'; border = 'rgba(251,191,36,0.5)' }
-                  else if (cell) { bg = 'rgba(148,163,184,0.06)'; border = 'rgba(71,85,105,0.4)' } // passable econ/bus
+                  else if (mod) { bg = 'rgba(100,116,139,0.10)'; border = 'rgba(100,116,139,0.4)' } // neutralised
+                  else if (cell) { bg = 'rgba(148,163,184,0.06)'; border = 'rgba(71,85,105,0.4)' }
                   if (entryHint) { bg = 'rgba(34,211,238,0.07)'; border = 'rgba(34,211,238,0.4)' }
-                  if (inPath) { bg = 'rgba(34,211,238,0.32)'; border = isLast ? '#e2e8f0' : '#22d3ee' }
+                  if (toolTarget) { border = toolMode === 'ice' ? '#67e8f9' : '#a78bfa'; glow = `0 0 10px -2px ${toolMode === 'ice' ? '#67e8f9' : '#a78bfa'}` }
+                  if (inPath) {
+                    bg = node ? 'rgba(251,191,36,0.30)' : 'rgba(34,211,238,0.30)'
+                    border = isLast ? '#e2e8f0' : node ? '#fbbf24' : '#22d3ee'
+                  }
 
-                  const title = isGoal ? 'Ziel (Vault/Core) — hierher routen'
+                  const title = node?.kind === 'vault' ? `Vault · Jackpot ${formatBits(node.value)}`
+                    : node ? `Daten-Knoten · ${formatBits(node.value)}`
                     : isFirewall ? `Firewall · Widerstand ${res}`
-                    : isHoneypot ? `Honeypot · Widerstand ${res} · Falle`
+                    : isHoneypot ? `Honeypot · Widerstand ${res} · Falle (+Entdeckung)`
+                    : mod === 'ice' ? 'Firewall geknackt' : mod === 'spoof' ? 'Honeypot entschärft'
                     : `passierbar · Widerstand ${res}`
 
                   return (
                     <button key={i} onClick={() => clickCell(i)}
                       className="relative rounded-[3px] flex items-center justify-center overflow-hidden transition-all duration-75"
                       style={{ minWidth: 0, minHeight: 0, background: bg, border: `1px solid ${border}`, boxShadow: glow,
-                        borderStyle: entryHint ? 'dashed' : 'solid', cursor: canStart ? 'pointer' : 'default' }}
+                        borderStyle: entryHint ? 'dashed' : 'solid', cursor: active ? 'pointer' : 'default' }}
                       title={title}>
-                      {isGoal ? (
-                        <span style={{ color: '#fbbf24', fontSize: 'clamp(0.8rem,3.8vw,1.1rem)', lineHeight: 1 }}>◈</span>
-                      ) : inPath ? (
-                        <span style={{ color: isLast ? '#f1f5f9' : '#a5f3fc', fontSize: 'clamp(0.6rem,3vw,0.9rem)', lineHeight: 1 }}>
-                          {isStart ? '▶' : isLast ? '◆' : '•'}
+                      {inPath ? (
+                        <span style={{ color: isLast ? '#f1f5f9' : node ? '#fde68a' : '#a5f3fc', fontSize: 'clamp(0.6rem,3vw,0.9rem)', lineHeight: 1 }}>
+                          {isStart ? '▶' : isLast ? '◆' : node ? '◈' : '•'}
                         </span>
+                      ) : node?.kind === 'vault' ? (
+                        <span style={{ color: '#fbbf24', fontSize: 'clamp(0.8rem,3.8vw,1.1rem)', lineHeight: 1 }}>◈</span>
+                      ) : node ? (
+                        <span style={{ color: '#6ee7b7', fontSize: 'clamp(0.55rem,2.7vw,0.8rem)', lineHeight: 1 }}>▪</span>
                       ) : (isFirewall || isHoneypot) ? (
                         <span className="font-mono font-semibold tabular-nums"
                           style={{ color: isFirewall ? '#fca5a5' : '#fcd34d', fontSize: 'clamp(0.5rem,2.5vw,0.72rem)', lineHeight: 1 }}>{res}</span>
+                      ) : mod ? (
+                        <span style={{ color: 'rgba(148,163,184,0.5)', fontSize: '0.6rem' }}>✓</span>
                       ) : (
                         <span style={{ color: entryHint ? 'rgba(34,211,238,0.6)' : 'rgba(71,85,105,0.5)', fontSize: '0.4rem' }}>·</span>
                       )}
@@ -219,32 +280,55 @@ export function RaidModal({ onClose }: Props) {
               </div>
               {/* Legend */}
               <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-2 font-mono text-[9px] text-slate-500">
-                <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-[2px] inline-block border border-dashed" style={{ borderColor: 'rgba(34,211,238,0.5)', background: 'rgba(34,211,238,0.08)' }} />Rand = Einstieg</span>
-                <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-[2px] inline-block" style={{ background: 'repeating-linear-gradient(45deg, rgba(248,113,113,0.5) 0 2px, rgba(248,113,113,0.12) 2px 4px)', border: '1px solid rgba(248,113,113,0.55)' }} />Firewall (Widerstand)</span>
-                <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-[2px] inline-block" style={{ background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.5)' }} />Honeypot (Falle)</span>
-                <span className="flex items-center gap-1"><span className="text-amber-300">◈</span> Ziel</span>
+                <span className="flex items-center gap-1"><span className="text-amber-300">◈</span> Vault</span>
+                <span className="flex items-center gap-1"><span className="text-emerald-300">▪</span> Daten-Knoten</span>
+                <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-[2px] inline-block" style={{ background: 'repeating-linear-gradient(45deg, rgba(248,113,113,0.5) 0 2px, rgba(248,113,113,0.12) 2px 4px)', border: '1px solid rgba(248,113,113,0.55)' }} />Firewall</span>
+                <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-[2px] inline-block" style={{ background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.5)' }} />Honeypot</span>
               </div>
             </div>
 
-            {/* Trap risk + actions */}
-            {phase === 'ready' && !result && (
+            {/* Tools + actions */}
+            {!result && (
               <div className="space-y-2 shrink-0">
-                {trap > 0 && (
-                  <div className="font-mono text-[10px] text-amber-400/80 text-center">🍯 Fallen-Risiko auf dieser Route: {Math.round(trap * 100)}%</div>
+                {/* Intrusion kit */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button onClick={() => selectTool('ice')} disabled={kit.ice < 1}
+                    className="font-mono text-[10px] py-1.5 rounded border transition-colors disabled:opacity-35"
+                    style={{ borderColor: toolMode === 'ice' ? '#67e8f9' : 'rgba(51,65,85,0.7)', color: toolMode === 'ice' ? '#67e8f9' : '#94a3b8', background: toolMode === 'ice' ? 'rgba(34,211,238,0.1)' : 'transparent' }}>
+                    🧊 ICE-Breaker ×{kit.ice}
+                  </button>
+                  <button onClick={() => selectTool('spoof')} disabled={kit.spoof < 1}
+                    className="font-mono text-[10px] py-1.5 rounded border transition-colors disabled:opacity-35"
+                    style={{ borderColor: toolMode === 'spoof' ? '#a78bfa' : 'rgba(51,65,85,0.7)', color: toolMode === 'spoof' ? '#a78bfa' : '#94a3b8', background: toolMode === 'spoof' ? 'rgba(167,139,250,0.1)' : 'transparent' }}>
+                    📡 Spoofer ×{kit.spoof}
+                  </button>
+                  <button onClick={applyBandwidth} disabled={kit.bandwidth < 1}
+                    className="font-mono text-[10px] py-1.5 rounded border border-slate-700 text-slate-400 hover:border-slate-500 transition-colors disabled:opacity-35">
+                    ➕ Bandbreite ×{kit.bandwidth}
+                  </button>
+                </div>
+
+                {toolMode && (
+                  <div className="font-mono text-[10px] text-center" style={{ color: toolMode === 'ice' ? '#67e8f9' : '#a78bfa' }}>
+                    {toolMode === 'ice' ? 'Wähle eine Firewall zum Knacken' : 'Wähle einen Honeypot zum Entschärfen'} · nochmal klicken zum Abbrechen
+                  </div>
                 )}
+
                 <div className="flex gap-2">
                   {path.length > 0 && <button onClick={() => setPath([])} className="font-mono text-[11px] px-3 py-2 rounded border border-slate-700 text-slate-400 hover:border-slate-500">Route löschen</button>}
                   <button onClick={loadTarget} className="font-mono text-[11px] px-3 py-2 rounded border border-slate-700 text-slate-400 hover:border-slate-500">Anderes Ziel</button>
-                  {atGoal ? (
-                    <button onClick={commitBreach} className="flex-1 font-mono text-sm py-2 rounded border border-red-500 text-red-200 bg-red-900/25 hover:bg-red-900/40 font-semibold animate-pulse">
-                      Breach{trap > 0 ? ` (${Math.round((1 - trap) * 100)}%)` : ''} · 1⚡
-                    </button>
-                  ) : (
-                    <button disabled className="flex-1 font-mono text-[11px] py-2 rounded border border-slate-800 text-slate-600 opacity-60">◈ Vault erreichen</button>
-                  )}
+                  <button onClick={extract} disabled={runLoot <= 0}
+                    className="flex-1 font-mono text-sm py-2 rounded border font-semibold transition-colors disabled:opacity-40"
+                    style={{ borderColor: runLoot > 0 ? (repel > 0.5 ? '#f87171' : '#34d399') : 'rgba(51,65,85,0.6)',
+                      color: runLoot > 0 ? (repel > 0.5 ? '#fca5a5' : '#6ee7b7') : '#64748b',
+                      background: runLoot > 0 ? (repel > 0.5 ? 'rgba(248,113,113,0.12)' : 'rgba(52,211,153,0.12)') : 'transparent' }}>
+                    {runLoot > 0 ? `Extrahieren · Risiko ${Math.round(repel * 100)}% · 1⚡` : 'Erst Beute sichern'}
+                  </button>
                 </div>
                 <div className="font-mono text-[9px] text-slate-700 text-center">
-                  {path.length === 0 ? '① Klicke eine gestrichelte Randzelle (Einstieg).' : '② Klicke Zelle für Zelle weiter bis zum ◈ Ziel. Zurück: letzte Zelle erneut klicken.'}
+                  {path.length === 0
+                    ? '① Am Rand eindringen, dann zu ◈/▪ Knoten routen und Beute sichern.'
+                    : '② Tiefer = mehr Beute, aber Entdeckung steigt. Extrahiere, bevor du auffliegst.'}
                 </div>
               </div>
             )}
@@ -254,13 +338,13 @@ export function RaidModal({ onClose }: Props) {
               <div className="text-center space-y-2 shrink-0">
                 {result.won ? (
                   <>
-                    <div className="font-mono text-lg font-semibold text-emerald-300">✓ Breach erfolgreich</div>
+                    <div className="font-mono text-lg font-semibold text-emerald-300">✓ Extraktion erfolgreich</div>
                     <div className="font-mono text-sm text-amber-300">+{formatBits(result.loot)} erbeutet</div>
                   </>
                 ) : (
                   <>
-                    <div className="font-mono text-lg font-semibold text-red-400">✗ Abgewehrt</div>
-                    <div className="font-mono text-[11px] text-slate-500">In einen Honeypot gelaufen. Der Verteidiger kassiert eine Bounty.</div>
+                    <div className="font-mono text-lg font-semibold text-red-400">✗ Entdeckt & abgewehrt</div>
+                    <div className="font-mono text-[11px] text-slate-500">Beim Rausziehen aufgeflogen — die Beute ist futsch, der Verteidiger kassiert eine Bounty.</div>
                   </>
                 )}
                 <button onClick={onClose} className="w-full mt-1 font-mono text-sm py-2 rounded border border-slate-700 text-slate-300 hover:border-slate-500">Fertig</button>

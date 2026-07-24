@@ -83,8 +83,27 @@ export const CHIP_TRAP_CAP = 0.5
 // Async, minted loot (a raid never deducts from the victim). The breach is a routing
 // puzzle: trace a path from an edge to the target's Vault, staying under a resistance
 // budget. Defensive cells cost a lot, so a well-walled Vault repels sloppy routing.
-export const RAID_BASE_BUDGET = 26            // resistance a breach may spend, before losing
-export const RAID_LOOT_PCT = 0.05             // won loot = this fraction of the target's run bits
+export const RAID_BASE_BUDGET = 26            // bandwidth a breach may spend on cell resistance
+// --- Loot nodes (minted, scaled by the target's build) ------------------------------
+// The breach is an extraction run: you capture data nodes as you route and bank them when
+// you extract. The Vault is the jackpot; economy modules are smaller nodes scaled by level.
+// Greedier/deeper routes net more loot but raise Detection (see below) — the core tension.
+export const RAID_LOOT_VAULT_PCT = 0.04       // vault jackpot = this fraction of target run bits
+export const RAID_LOOT_NODE_PCT = 0.007       // per economy module at max level (scales by level)
+// --- Detection (the repel mechanic) -------------------------------------------------
+// Detection climbs as you breach; at extraction it IS your repel chance. Defence feeds it
+// two ways: firewalls/honeypots spike it, and the trace level adds to every step — so a
+// fortified base forces you to extract early (less loot) or gamble a risky pull.
+export const RAID_DETECT_PER_STEP = 0.03      // base detection per cell entered
+export const RAID_DETECT_FIREWALL = 0.12      // extra when the step is a firewall
+export const RAID_DETECT_HONEYPOT = 0.30      // extra when the step is a honeypot (the trap)
+export const RAID_DETECT_PER_TRACE = 0.014    // extra per-step detection per point of trace
+export const RAID_EXTRACT_MAX_REPEL = 0.9     // detection is capped here as a repel chance
+// --- Intrusion kit (a fixed toolkit per raid; pure skill = how you spend it) ---------
+export const RAID_KIT_ICE = 2                 // ICE-Breaker: neutralise a firewall
+export const RAID_KIT_SPOOF = 1               // Spoofer: disarm a honeypot
+export const RAID_KIT_BANDWIDTH = 1           // Bandwidth boost: +budget this run
+export const RAID_BANDWIDTH_BONUS = 8
 // Trace: even an unwalled base resists a breach. Every cell you step on is "traced", and
 // this per-step cost scales with the target's overall defence rating — so a heavily
 // fortified base is hard to cross however its modules are arranged, and short approaches
