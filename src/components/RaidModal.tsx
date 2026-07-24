@@ -245,7 +245,7 @@ export function RaidModal({ onClose }: Props) {
                     border = isLast ? '#e2e8f0' : node ? '#fbbf24' : '#22d3ee'
                   }
 
-                  const title = node?.kind === 'vault' ? `Vault · Jackpot ${formatBits(node.value)}`
+                  const title = node?.kind === 'vault' ? `Datenkern · Jackpot ${formatBits(node.value)}`
                     : node ? `Daten-Knoten · ${formatBits(node.value)}`
                     : isFirewall ? `Firewall · Widerstand ${res}`
                     : isHoneypot ? `Honeypot · Widerstand ${res} · Falle (+Entdeckung)`
@@ -280,7 +280,7 @@ export function RaidModal({ onClose }: Props) {
               </div>
               {/* Legend */}
               <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-2 font-mono text-[9px] text-slate-500">
-                <span className="flex items-center gap-1"><span className="text-amber-300">◈</span> Vault</span>
+                <span className="flex items-center gap-1"><span className="text-amber-300">◈</span> Datenkern (Jackpot)</span>
                 <span className="flex items-center gap-1"><span className="text-emerald-300">▪</span> Daten-Knoten</span>
                 <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-[2px] inline-block" style={{ background: 'repeating-linear-gradient(45deg, rgba(248,113,113,0.5) 0 2px, rgba(248,113,113,0.12) 2px 4px)', border: '1px solid rgba(248,113,113,0.55)' }} />Firewall</span>
                 <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-[2px] inline-block" style={{ background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.5)' }} />Honeypot</span>

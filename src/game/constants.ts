@@ -88,7 +88,7 @@ export const RAID_BASE_BUDGET = 26            // bandwidth a breach may spend on
 // The breach is an extraction run: you capture data nodes as you route and bank them when
 // you extract. The Vault is the jackpot; economy modules are smaller nodes scaled by level.
 // Greedier/deeper routes net more loot but raise Detection (see below) — the core tension.
-export const RAID_LOOT_VAULT_PCT = 0.04       // vault jackpot = this fraction of target run bits
+export const RAID_LOOT_CORE_PCT = 0.04        // the data core (always present) = this fraction of run bits
 export const RAID_LOOT_NODE_PCT = 0.007       // per economy module at max level (scales by level)
 // --- Detection (the repel mechanic) -------------------------------------------------
 // Detection climbs as you breach; at extraction it IS your repel chance. Defence feeds it
